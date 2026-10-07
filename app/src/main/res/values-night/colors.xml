@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_background">#FF121318</color>
+    <!-- Светло-сиреневый контур на тёмном фоне -->
+    <color name="splash_icon">#FFD0BCFF</color>
 </resources>
