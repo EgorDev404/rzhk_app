@@ -1,3 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Иконка заставки. Система обрезает её кругом диаметром 2/3 холста,
+    поэтому холст (42x42) заметно больше самой фигуры (24x24), а группа
+    сдвинута в центр: translate = (42 - 24) / 2 = 9.
+-->
 <animated-vector
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
@@ -6,14 +12,14 @@
             android:name="vector"
             android:width="108dp"
             android:height="108dp"
-            android:viewportWidth="24"
-            android:viewportHeight="24">
+            android:viewportWidth="42"
+            android:viewportHeight="42">
             <group
                 android:name="grp"
                 android:pivotX="12"
                 android:pivotY="12"
-                android:scaleX="0.9"
-                android:scaleY="0.9">
+                android:translateX="9"
+                android:translateY="9">
                 <path
                     android:name="path"
                     android:pathData="M 19 13.431 L 19 16 C 19 18.398 15.795 20 12 20 C 8.205 20 5 18.398 5 16 L 5 13.431 L 10.886 15.785 C 11.527 16.042 12.238 16.069 12.897 15.863 L 13.114 15.785 Z M 21 10.476 L 12.371 13.928 C 12.133 14.023 11.867 14.023 11.629 13.928 L 1.629 9.928 C 0.79 9.593 0.79 8.407 1.629 8.072 L 11.629 4.072 C 11.708 4.04 11.79 4.019 11.874 4.008 L 12 4 L 12.126 4.008 C 12.21 4.019 12.292 4.04 12.371 4.072 L 22.403 8.085 L 22.511 8.14 L 22.61 8.208 L 22.698 8.284 L 22.773 8.366 L 22.808 8.41 L 22.881 8.525 L 22.933 8.64 L 22.967 8.742 L 22.992 8.877 L 22.998 8.935 L 23 15 C 23 15.265 22.895 15.52 22.707 15.707 C 22.52 15.895 22.265 16 22 16 C 21.735 16 21.48 15.895 21.293 15.707 C 21.105 15.52 21 15.265 21 15 Z"
@@ -22,10 +28,11 @@
                     android:strokeColor="#6750a4"
                     android:strokeWidth="2"
                     android:strokeLineCap="round"
-                    android:strokeLineJoin="round"/>
+                    android:strokeLineJoin="round" />
             </group>
         </vector>
     </aapt:attr>
+
     <target android:name="path">
         <aapt:attr name="android:animation">
             <objectAnimator
@@ -34,7 +41,7 @@
                 android:valueFrom="0"
                 android:valueTo="1"
                 android:valueType="floatType"
-                android:interpolator="@android:interpolator/linear_out_slow_in"/>
+                android:interpolator="@android:interpolator/linear_out_slow_in" />
         </aapt:attr>
     </target>
 </animated-vector>
