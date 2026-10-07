@@ -3,4 +3,6 @@
     <!-- Иконка приложения пока просто белая: потом замените ic_launcher_foreground.xml -->
     <color name="ic_launcher_background">#FFFFFFFF</color>
     <color name="splash_background">#FFFAF8FF</color>
+    <!-- Контур иконки заставки: тёмно-фиолетовый на светлом фоне -->
+    <color name="splash_icon">#FF6750A4</color>
 </resources>
