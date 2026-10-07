@@ -156,7 +156,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
-                val themes = listOf(ThemeMode.System to "Как в системе", ThemeMode.Light to "Светлая", ThemeMode.Dark to "Тёмная")
+                val themes = listOf(ThemeMode.System to "Система", ThemeMode.Light to "Светлая", ThemeMode.Dark to "Тёмная")
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     themes.forEachIndexed { index, (mode, label) ->
                         SegmentedButton(
