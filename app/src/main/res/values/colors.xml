@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Иконка приложения пока просто белая: потом замените ic_launcher_foreground.xml -->
+    <color name="ic_launcher_background">#FFFFFFFF</color>
+    <color name="splash_background">#FFFAF8FF</color>
+</resources>
