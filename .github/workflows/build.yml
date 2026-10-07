@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,7 +25,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -30,29 +33,28 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
+      # Читаем versionName из Gradle, чтобы тег релиза совпадал с версией в приложении.
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Версия: $VERSION"
+
       # Тесты логики поиска файлов. Не блокируют сборку: сигнал, а не преграда.
       - name: Unit tests
         continue-on-error: true
-        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+        run: gradle :app:testReleaseUnitTest --no-daemon --stacktrace
 
-      # Обычная сборка — должна пройти всегда.
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
-
-      # Оптимизированная сборка (R8): заметно плавнее. Если вдруг не соберётся — останется debug.
-      - name: Build release APK (optimized)
-        continue-on-error: true
+      # Оптимизированная сборка (R8): заметно плавнее.
+      - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+      # Постоянный релиз с APK. Исходники GitHub приложит сам — Source code (zip/tar.gz).
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: raspisanie-debug
-          path: app/build/outputs/apk/debug/*.apk
-
-      - name: Upload release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: raspisanie-release
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: ignore
+          tag_name: v${{ steps.version.outputs.name }}
+          name: Release v${{ steps.version.outputs.name }}
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
