@@ -230,9 +230,15 @@ fun SettingsScreen(
             // ---- о приложении ----
             SettingsCard(title = "О приложении") {
                 Text(
-                    "Расписание берётся с сайта колледжа (rzn-jd62.gosuslugi.ru) прямо на вашем телефоне. " +
-                        "Сайт доступен только из России — при включённом VPN приложение работать не будет.",
+                    "Данное приложение скачивает свежие официальные PDF файлы расписания с сервера колледжа ОГБПОУ \"РЖК\" (https://rzn-jd62.gosuslugi.ru)",
                     style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "ℹ️ При ошибках загрузки, в первую очередь проверьте ваше подключение к сети, состояние VPN, частные DNS-сервера.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
                 Text(
