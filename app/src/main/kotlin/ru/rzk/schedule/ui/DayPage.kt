@@ -28,10 +28,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
 import ru.rzk.schedule.data.Dates
 import ru.rzk.schedule.data.FailureKind
@@ -61,7 +64,23 @@ fun DayPage(
     onOpenPage: (Int) -> Unit,
     onEnableNotifications: () -> Unit,
 ) {
-    PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+    val pullState = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = state.refreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize(),
+        state = pullState,
+        // Крупный индикатор: масштабируем стандартный в 1.4 раза.
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                modifier = Modifier.align(Alignment.TopCenter).scale(1.4f),
+                isRefreshing = state.refreshing,
+                state = pullState,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        },
+    ) {
         // Прокручиваемый контейнер нужен всегда — иначе «потянуть вниз» не работает на коротких экранах.
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),

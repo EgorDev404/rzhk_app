@@ -1,6 +1,7 @@
 package ru.rzk.schedule.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -27,8 +28,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import ru.rzk.schedule.app
 import ru.rzk.schedule.ui.theme.ScheduleTheme
 import ru.rzk.schedule.work.WorkScheduler
@@ -57,6 +61,16 @@ fun AppRoot(vm: HomeViewModel) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         if (needsPermission) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
         else store.update { it.copy(notifications = true) }
+    }
+
+    // Иконки статус-бара и навбара: белые, пока открыт вьюер (чёрный фон),
+    // и обычные — в остальном приложении.
+    val view = LocalView.current
+    LaunchedEffect(viewerVisible) {
+        val window = (view.context as? Activity)?.window ?: return@LaunchedEffect
+        val controller = WindowCompat.getInsetsController(window, view)
+        controller.isAppearanceLightStatusBars = !viewerVisible
+        controller.isAppearanceLightNavigationBars = !viewerVisible
     }
 
     ScheduleTheme(settings) {
@@ -97,16 +111,26 @@ fun AppRoot(vm: HomeViewModel) {
                 }
             }
 
+            // BackHandler вынесен наружу: срабатывает только когда вьюер видим.
+            BackHandler(enabled = viewerVisible) { viewerVisible = false }
+
             viewer?.let { request ->
                 AnimatedVisibility(
                     visible = viewerVisible,
                     enter = fadeIn(tween(220)) + scaleIn(tween(260), initialScale = 0.92f),
                     exit = fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 0.92f),
                 ) {
-                    BackHandler { viewerVisible = false }
                     ViewerScreen(request = request, onClose = { viewerVisible = false })
                 }
             }
+        }
+    }
+
+    // Сброс request после завершения анимации закрытия — освобождаем File-ссылки.
+    LaunchedEffect(viewerVisible, viewer) {
+        if (!viewerVisible && viewer != null) {
+            delay(220) // чуть больше длительности exit-анимации
+            viewer = null
         }
     }
 }
