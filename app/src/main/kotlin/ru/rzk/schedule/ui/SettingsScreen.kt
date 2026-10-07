@@ -1,7 +1,9 @@
 package ru.rzk.schedule.ui
 
+import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,10 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,14 +40,24 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.launch
 import ru.rzk.schedule.data.Settings
 import ru.rzk.schedule.data.ThemeMode
+
+/** Проверяет, внесено ли приложение в whitelist оптимизации батареи. */
+private fun isBatteryOptimizationIgnored(context: Context): Boolean {
+    val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+    return pm.isIgnoringBatteryOptimizations(context.packageName)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +73,14 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val version = remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "—"
+    }
+
+    // Состояние «работа без ограничений батареи разрешена».
+    // Перечитывается при каждом возвращении экрана в активное состояние.
+    var batteryUnrestricted by remember { mutableStateOf(isBatteryOptimizationIgnored(context)) }
+    LifecycleResumeEffect(Unit) {
+        batteryUnrestricted = isBatteryOptimizationIgnored(context)
+        onPauseOrDispose { }
     }
 
     Scaffold(
@@ -130,22 +153,45 @@ fun SettingsScreen(
             // ---- если уведомления не приходят ----
             SettingsCard(title = "Если уведомления не приходят") {
                 Text(
-                    "На некоторых телефонах (Xiaomi, Huawei, Samsung и др.) система выключает фоновые задачи. " +
-                        "Разрешите приложению работать без ограничений батареи.",
+                    if (batteryUnrestricted) {
+                        "Готово: системе разрешено работать в фоне без ограничений батареи. " +
+                            "Уведомления будут приходить вовремя."
+                    } else {
+                        "На некоторых телефонах (Xiaomi, Huawei, Samsung и др.) система выключает фоновые задачи. " +
+                            "Разрешите приложению работать без ограничений батареи."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
-                OutlinedButton(
-                    onClick = {
-                        runCatching {
-                            context.startActivity(
-                                Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
-                        }
-                    },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                ) { Text("Настройки батареи") }
+
+                if (batteryUnrestricted) {
+                    // Залитая «успешная» кнопка, недоступная для нажатия.
+                    FilledTonalButton(
+                        onClick = { },
+                        enabled = false,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    ) {
+                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(8.dp))
+                        Text("Ограничения сняты")
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    ) { Text("Разрешить работу в фоне") }
+                }
             }
 
             // ---- оформление ----
