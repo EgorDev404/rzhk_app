@@ -23,15 +23,15 @@ android {
 
     // Один и тот же ключ для всех сборок: новую версию можно ставить поверх старой без потери кэша.
     // Ключ лежит в репозитории намеренно — это личное приложение, а не публикация в магазине.
-    signingConfigs {
-        create("shared") {
-            storeFile = file("shared.keystore")
-            storeType = "pkcs12"
-            storePassword = "rzkschedule"
-            keyAlias = "rzk"
-            keyPassword = "rzkschedule"
-        }
+signingConfigs {
+    create("shared") {
+        val keystorePath = System.getenv("KEYSTORE_PATH") ?: "release-key.jks"
+        storeFile = file(keystorePath)
+        storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+        keyAlias = System.getenv("KEY_ALIAS") ?: "rzk"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: ""
     }
+}
 
     buildTypes {
         debug {

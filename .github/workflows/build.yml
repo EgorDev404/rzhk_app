@@ -15,6 +15,9 @@ jobs:
       - name: Create google-services.json
         run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
 
+      - name: Decode keystore
+        run: echo '${{ secrets.KEYSTORE_BASE64 }}' | base64 -d > app/release-key.jks
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -33,18 +36,25 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
-      # Тесты логики поиска файлов. Не блокируют сборку: сигнал, а не преграда.
       - name: Unit tests
         continue-on-error: true
         run: gradle :app:testReleaseUnitTest --no-daemon --stacktrace
 
-      # Оптимизированная сборка (R8): заметно плавнее.
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/app/release-key.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      # Обычная debug-сборка на случай, если release не подписан.
       - name: Build debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/app/release-key.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
