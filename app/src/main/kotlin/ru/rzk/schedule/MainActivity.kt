@@ -1,6 +1,7 @@
 package ru.rzk.schedule
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -9,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import ru.rzk.schedule.ui.AppRoot
@@ -40,7 +42,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // 3. Таймер стартует сразу после super.onCreate.
+        // 3. Подбираем цвет иконок статус-бара под текущую тему (светлая/тёмная).
+        applyStatusBarAppearance()
+
+        // 4. Таймер стартует сразу после super.onCreate.
         //    Он НЕ блокирует UI-поток, поэтому Compose успевает отрисовать первый кадр
         //    под сплешем, и переход происходит мгновенно и без мигания.
         Handler(Looper.getMainLooper()).postDelayed(
@@ -48,10 +53,10 @@ class MainActivity : ComponentActivity() {
             splashAnimationDurationMs
         )
 
-        // 4. Обработка deep link из уведомления (только при холодном старте).
+        // 5. Обработка deep link из уведомления (только при холодном старте).
         if (savedInstanceState == null) handle(intent)
 
-        // 5. Контент ставится сразу — он рендерится под сплешем.
+        // 6. Контент ставится сразу — он рендерится под сплешем.
         //    К моменту снятия splash пользователь видит готовый UI.
         setContent { AppRoot(viewModel) }
     }
@@ -59,6 +64,20 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handle(intent)
+    }
+
+    /**
+     * Делает иконки статус-бара контрастными:
+     *  - светлая тема  → тёмные иконки (isAppearanceLightStatusBars = true)
+     *  - тёмная тема   → светлые иконки (isAppearanceLightStatusBars = false)
+     * Прозрачный фон статус-бара задан в themes.xml.
+     */
+    private fun applyStatusBarAppearance() {
+        val isDark = resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
+        WindowCompat.getInsetsController(window, window.decorView)
+            .isAppearanceLightStatusBars = !isDark
     }
 
     /** Нажали на уведомление — открываем нужный день. */

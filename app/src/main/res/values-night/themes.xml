@@ -1,15 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Тема окна после заставки. Весь интерфейс рисует Compose. -->
     <style name="Theme.App" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Прозрачный статус-бар, чтобы контент рисовался под ним -->
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <!-- Светлая тема: фон светлый → иконки статус-бара тёмные -->
-        <item name="android:windowLightStatusBar">true</item>
-        <!-- Аналогично для навигационной панели -->
+        <!-- Тёмная тема: фон тёмный → иконки статус-бара светлые -->
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightNavigationBar">true</item>
-        <!-- Разрешаем контенту рисоваться под системными панелями -->
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
@@ -19,8 +15,8 @@
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
         <item name="windowSplashScreenAnimationDuration">800</item>
         <item name="postSplashScreenTheme">@style/Theme.App</item>
-        <!-- Сплэш светлый → иконки тёмные -->
-        <item name="android:windowLightStatusBar">true</item>
+        <!-- В тёмной теме сплэш тёмный → иконки светлые -->
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:statusBarColor">@color/splash_background</item>
     </style>
 </resources>
