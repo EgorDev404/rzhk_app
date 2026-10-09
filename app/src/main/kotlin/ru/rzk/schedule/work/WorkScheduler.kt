@@ -17,6 +17,7 @@ object WorkScheduler {
 
     /** Включает или выключает периодическую проверку согласно настройкам. */
     fun apply(context: Context, settings: Settings) {
+        Push.sync(context, settings.notifications) // подписка на push следует за тем же переключателем
         val manager = WorkManager.getInstance(context)
         if (!settings.notifications) {
             manager.cancelUniqueWork(NAME)
