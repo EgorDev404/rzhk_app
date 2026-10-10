@@ -4,24 +4,25 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
+    android:padding="12dp"
     android:background="@drawable/widget_bg"
-    android:gravity="center_horizontal">
+    android:gravity="center">
 
+    <!-- Чип статуса -->
     <LinearLayout
         android:id="@+id/widget_chip_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="6dp"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="5dp"
         android:background="@drawable/widget_chip_bg">
 
         <ImageView
             android:id="@+id/widget_chip_icon"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
             android:src="@drawable/ic_widget_school"
             android:contentDescription="@null" />
 
@@ -30,15 +31,17 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="6dp"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:maxLines="1" />
     </LinearLayout>
 
+    <!-- Кольцо с процентом -->
     <FrameLayout
         android:id="@+id/widget_ring"
-        android:layout_width="120dp"
-        android:layout_height="120dp"
-        android:layout_marginTop="12dp">
+        android:layout_width="110dp"
+        android:layout_height="110dp"
+        android:layout_marginTop="8dp">
 
         <ImageView
             android:id="@+id/widget_ring_image"
@@ -52,31 +55,34 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold" />
     </FrameLayout>
 
+    <!-- Крупный отсчёт -->
     <TextView
         android:id="@+id/widget_big"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textSize="36sp"
+        android:layout_marginTop="6dp"
+        android:textSize="32sp"
         android:textStyle="bold"
         android:maxLines="1" />
 
+    <!-- Подпись под отсчётом -->
     <TextView
         android:id="@+id/widget_big_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textSize="13sp"
+        android:textSize="12sp"
         android:maxLines="1" />
 
+    <!-- Две «таблетки» со временами -->
     <LinearLayout
         android:id="@+id/widget_stats"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:orientation="horizontal"
         android:baselineAligned="false">
 
@@ -86,22 +92,22 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:padding="10dp"
+            android:padding="8dp"
             android:background="@drawable/widget_pill_bg"
-            android:layout_marginEnd="4dp">
+            android:layout_marginEnd="3dp">
 
             <TextView
                 android:id="@+id/widget_stats_left_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:maxLines="1" />
 
             <TextView
                 android:id="@+id/widget_stats_left_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="18sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -111,32 +117,33 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:padding="10dp"
+            android:padding="8dp"
             android:background="@drawable/widget_pill_bg"
-            android:layout_marginStart="4dp">
+            android:layout_marginStart="3dp">
 
             <TextView
                 android:id="@+id/widget_stats_right_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:maxLines="1" />
 
             <TextView
                 android:id="@+id/widget_stats_right_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="18sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 
+    <!-- Подпись с «дальше» -->
     <TextView
         android:id="@+id/widget_footer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textSize="12sp"
+        android:layout_marginTop="6dp"
+        android:textSize="11sp"
         android:gravity="center"
         android:maxLines="2" />
 

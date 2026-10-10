@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import ru.rzk.schedule.MainActivity
@@ -22,6 +23,10 @@ import java.time.LocalDateTime
  * Цвета берутся из [WidgetColors] — они сохраняются при смене темы в приложении.
  * При смене темы приложение вызывает [BellsWidgetUpdater.refreshAll], и виджет
  * немедленно перерисовывается в новых цветах.
+ *
+ * Чтобы содержимое не обрезалось при изменении размера, виджет подстраивает
+ * набор видимых элементов под доступную высоту: чем меньше высота — тем меньше
+ * элементов показывается. Логика в [SizeClass].
  */
 class BellsWidget : AppWidgetProvider() {
 
@@ -41,11 +46,46 @@ class BellsWidget : AppWidgetProvider() {
         manager: AppWidgetManager,
         ids: IntArray,
     ) {
-        ids.forEach { id -> manager.updateAppWidget(id, buildViews(context)) }
+        ids.forEach { id ->
+            val options = manager.getAppWidgetOptions(id)
+            manager.updateAppWidget(id, buildViews(context, SizeClass.from(options)))
+        }
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        manager: AppWidgetManager,
+        id: Int,
+        newOptions: Bundle,
+    ) {
+        // Пользователь изменил размер — перерисовать с новым набором элементов.
+        manager.updateAppWidget(id, buildViews(context, SizeClass.from(newOptions)))
+    }
+
+    /**
+     * Сколько контента помещается в текущий размер виджета.
+     * Пороги подобраны так, чтобы на минимальной высоте помещались чип + отсчёт,
+     * а на максимальной — всё, включая футер.
+     */
+    enum class SizeClass {
+        Compact,    // ~110dp высоты: чип, процент, большой текст
+        Normal,     // ~150dp: + статистика (Начался / Закончится)
+        Full;       // ~180dp+: + футер с подписью
+
+        companion object {
+            fun from(options: Bundle): SizeClass {
+                val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
+                return when {
+                    heightDp < 140 -> Compact
+                    heightDp < 180 -> Normal
+                    else -> Full
+                }
+            }
+        }
     }
 
     companion object {
-        fun buildViews(context: Context): RemoteViews {
+        fun buildViews(context: Context, size: SizeClass = SizeClass.Full): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_bells)
             val now = LocalDateTime.now(Dates.zone)
             val state = BellSchedule.state(now, BellSchedule.SHORT_DAY)
@@ -63,13 +103,13 @@ class BellsWidget : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_root, pending)
 
-            applyState(views, state)
+            applyState(views, state, size)
             applyThemeColors(context, views, state)
             return views
         }
 
-        /** Заполняет тексты и видимость блоков в соответствии с [state]. */
-        private fun applyState(views: RemoteViews, state: BellState) {
+        /** Заполняет тексты и видимость блоков в соответствии с [state] и размером [size]. */
+        private fun applyState(views: RemoteViews, state: BellState, size: SizeClass) {
             val chipText: String
             val bigText: String
             val bigLabel: String
@@ -78,7 +118,7 @@ class BellsWidget : AppWidgetProvider() {
             val statsRightLabel: String
             val statsRightValue: String
             val footer: String
-            val showStats: Boolean
+            val hasStats: Boolean
             val showRing: Boolean
 
             when (state) {
@@ -93,7 +133,7 @@ class BellsWidget : AppWidgetProvider() {
                     footer = state.next?.let {
                         "Дальше: перемена ${BellSchedule.minutes(state.breakAfter!!)}, затем ${it.number} урок в ${BellSchedule.hm(it.start)}"
                     } ?: "Это последний урок на сегодня"
-                    showStats = true
+                    hasStats = true
                     showRing = true
                 }
                 is BellState.InBreak -> {
@@ -105,7 +145,7 @@ class BellsWidget : AppWidgetProvider() {
                     statsRightLabel = "Урок ${state.next.number} начнётся"
                     statsRightValue = BellSchedule.hm(state.next.start)
                     footer = "Перемена длится ${BellSchedule.minutes(state.total)}"
-                    showStats = true
+                    hasStats = true
                     showRing = true
                 }
                 is BellState.BeforeClasses -> {
@@ -117,7 +157,7 @@ class BellsWidget : AppWidgetProvider() {
                     statsRightLabel = ""
                     statsRightValue = ""
                     footer = "${state.first.number} урок: ${BellSchedule.range(state.first)}"
-                    showStats = true
+                    hasStats = true
                     showRing = false
                 }
                 is BellState.Finished -> {
@@ -130,7 +170,7 @@ class BellsWidget : AppWidgetProvider() {
                     statsRightValue = ""
                     footer = (if (state.tomorrowIsMonday) "В понедельник" else "Завтра") +
                         " занятия начнутся в ${BellSchedule.hm(state.firstTomorrow)}"
-                    showStats = false
+                    hasStats = false
                     showRing = false
                 }
                 is BellState.DayOff -> {
@@ -142,16 +182,26 @@ class BellsWidget : AppWidgetProvider() {
                     statsRightLabel = ""
                     statsRightValue = ""
                     footer = "В понедельник занятия начнутся в ${BellSchedule.hm(state.nextStart)}"
-                    showStats = false
+                    hasStats = false
                     showRing = false
                 }
             }
+
+            // Что показываем в зависимости от размера.
+            val showStats = hasStats && size != SizeClass.Compact
+            val showFooter = size == SizeClass.Full
+            val showBigLabel = size != SizeClass.Compact
+            val showRingNow = showRing && size != SizeClass.Compact
 
             views.setTextViewText(R.id.widget_chip, chipText)
             views.setTextViewText(R.id.widget_big, bigText)
             views.setTextViewText(R.id.widget_big_label, bigLabel)
             views.setTextViewText(R.id.widget_footer, footer)
+            views.setViewVisibility(R.id.widget_big_label, if (showBigLabel) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_stats, if (showStats) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_footer, if (showFooter) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_ring, if (showRingNow) View.VISIBLE else View.GONE)
+
             if (showStats) {
                 views.setTextViewText(R.id.widget_stats_left_label, statsLeftLabel)
                 views.setTextViewText(R.id.widget_stats_left_value, statsLeftValue)
@@ -159,10 +209,9 @@ class BellsWidget : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_stats_right_value, statsRightValue)
                 views.setViewVisibility(R.id.widget_stats_right, if (statsRightValue.isEmpty()) View.GONE else View.VISIBLE)
             }
-            views.setViewVisibility(R.id.widget_ring, if (showRing) View.VISIBLE else View.INVISIBLE)
-            if (showRing && state is BellState.InLesson) {
+            if (showRingNow && state is BellState.InLesson) {
                 views.setTextViewText(R.id.widget_ring_percent, "${(state.progress * 100).toInt()}%")
-            } else if (showRing && state is BellState.InBreak) {
+            } else if (showRingNow && state is BellState.InBreak) {
                 views.setTextViewText(R.id.widget_ring_percent, "${(state.progress * 100).toInt()}%")
             }
         }
@@ -171,7 +220,6 @@ class BellsWidget : AppWidgetProvider() {
         private fun applyThemeColors(context: Context, views: RemoteViews, state: BellState) {
             val c = WidgetColors.load(context)
 
-            // Пара (фон, контент) в зависимости от состояния — как в Compose-версии NowCard.
             val (container, onContainer) = when (state) {
                 is BellState.InLesson -> c.primaryContainer to c.onPrimaryContainer
                 is BellState.InBreak -> c.tertiaryContainer to c.onTertiaryContainer
@@ -179,31 +227,25 @@ class BellsWidget : AppWidgetProvider() {
                 else -> c.surfaceContainerHigh to c.onSurface
             }
 
-            // Фон карточки. Используем setColorStateList на backgroundTintList, чтобы
-            // не затирать shape-drawable (setBackgroundColor ломает скругление на API < 31).
             views.setColorStateList(
                 R.id.widget_root,
                 "setBackgroundTintList",
                 ColorStateList.valueOf(container),
             )
 
-            // Основной текст — на контейнере.
             views.setTextColor(R.id.widget_chip, onContainer)
             views.setTextColor(R.id.widget_big, onContainer)
             views.setTextColor(R.id.widget_ring_percent, onContainer)
 
-            // Второстепенный текст — с прозрачностью.
             views.setTextColor(R.id.widget_big_label, WidgetColors.withAlpha(onContainer, 0.8f))
             views.setTextColor(R.id.widget_footer, WidgetColors.withAlpha(onContainer, 0.85f))
 
-            // Чип статуса.
             views.setColorStateList(
                 R.id.widget_chip_container,
                 "setBackgroundTintList",
                 ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.12f)),
             )
 
-            // «Таблетки» со временами.
             views.setColorStateList(
                 R.id.widget_stats_left,
                 "setBackgroundTintList",
@@ -219,7 +261,6 @@ class BellsWidget : AppWidgetProvider() {
             views.setTextColor(R.id.widget_stats_right_label, WidgetColors.withAlpha(onContainer, 0.75f))
             views.setTextColor(R.id.widget_stats_right_value, onContainer)
 
-            // Иконки — цветом контента.
             views.setColorStateList(
                 R.id.widget_chip_icon,
                 "setImageTintList",
