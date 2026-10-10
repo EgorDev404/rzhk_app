@@ -81,7 +81,12 @@ private val AppShapes = Shapes(
 )
 
 @Composable
-fun ScheduleTheme(settings: Settings, content: @Composable () -> Unit) {
+/**
+ * [darkBars] — поверх приложения сейчас тёмная поверхность независимо от темы (например, полноэкранный
+ * просмотр на чёрном фоне): значки системных панелей должны быть светлыми.
+ */
+@Composable
+fun ScheduleTheme(settings: Settings, darkBars: Boolean = false, content: @Composable () -> Unit) {
     val dark = when (settings.theme) {
         ThemeMode.System -> isSystemInDarkTheme()
         ThemeMode.Light -> false
@@ -100,8 +105,9 @@ fun ScheduleTheme(settings: Settings, content: @Composable () -> Unit) {
     SideEffect {
         val window = context.findActivity()?.window ?: return@SideEffect
         val controller = WindowCompat.getInsetsController(window, view)
-        controller.isAppearanceLightStatusBars = !dark
-        controller.isAppearanceLightNavigationBars = !dark
+        val iconsOnDark = dark || darkBars // тёмный фон → светлые значки
+        controller.isAppearanceLightStatusBars = !iconsOnDark
+        controller.isAppearanceLightNavigationBars = !iconsOnDark
     }
 
     MaterialTheme(colorScheme = colors, typography = AppTypography, shapes = AppShapes, content = content)

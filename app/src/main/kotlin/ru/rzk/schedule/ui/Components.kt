@@ -1,6 +1,7 @@
 package ru.rzk.schedule.ui
 
 import android.graphics.BitmapFactory
+import android.util.LruCache
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
@@ -19,6 +20,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -159,15 +162,38 @@ private fun decode(file: File, sample: Int): LoadedImage? {
     return LoadedImage(bitmap.asImageBitmap(), bitmap.width.toFloat() / bitmap.height)
 }
 
+/** Уже декодированные страницы держим в памяти: при возврате на вкладку заглушка не мелькает. */
+private object ImageCache {
+    private val cache = object : LruCache<String, LoadedImage>(24 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: LoadedImage): Int = value.bitmap.width * value.bitmap.height * 4
+    }
+
+    operator fun get(path: String): LoadedImage? = cache.get(path)
+    operator fun set(path: String, image: LoadedImage) {
+        cache.put(path, image)
+    }
+}
+
 /** Карточка с картинкой расписания: пока декодируется — мерцает, потом плавно проявляется. */
 @Composable
 fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
-    val loaded by produceState<LoadedImage?>(null, file) {
-        value = withContext(Dispatchers.Default) { decode(file, sample = 2) }
+    val loaded by produceState<LoadedImage?>(ImageCache[file.path], file) {
+        if (value == null) {
+            value = withContext(Dispatchers.Default) { decode(file, sample = 2) }?.also { ImageCache[file.path] = it }
+        }
     }
     val imageAlpha by animateFloatAsState(if (loaded != null) 1f else 0f, tween(450), label = "imageAlpha")
 
-    ElevatedCard(onClick = onClick, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    // Нажимная подсветка отключена: карточка занимает почти весь экран, и при начале свайпа по ней
+    // на долю секунды вспыхивал серый слой. Нажатие по-прежнему открывает просмотр на весь экран.
+    ElevatedCard(
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth().clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick,
+        ),
+    ) {
         Box(Modifier.fillMaxWidth().aspectRatio(loaded?.ratio ?: PAGE_RATIO).animateContentSize()) {
             Box(Modifier.fillMaxSize().shimmer().graphicsLayer { this.alpha = 1f - imageAlpha })
             loaded?.let { image ->

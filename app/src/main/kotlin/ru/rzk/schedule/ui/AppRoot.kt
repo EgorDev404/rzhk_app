@@ -1,7 +1,6 @@
 package ru.rzk.schedule.ui
 
 import android.Manifest
-import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -28,9 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import ru.rzk.schedule.app
@@ -63,17 +60,7 @@ fun AppRoot(vm: HomeViewModel) {
         else store.update { it.copy(notifications = true) }
     }
 
-    // Иконки статус-бара и навбара: белые, пока открыт вьюер (чёрный фон),
-    // и обычные — в остальном приложении.
-    val view = LocalView.current
-    LaunchedEffect(viewerVisible) {
-        val window = (view.context as? Activity)?.window ?: return@LaunchedEffect
-        val controller = WindowCompat.getInsetsController(window, view)
-        controller.isAppearanceLightStatusBars = !viewerVisible
-        controller.isAppearanceLightNavigationBars = !viewerVisible
-    }
-
-    ScheduleTheme(settings) {
+    ScheduleTheme(settings, darkBars = viewerVisible) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             AnimatedContent(
                 targetState = showSettings,
@@ -98,9 +85,11 @@ fun AppRoot(vm: HomeViewModel) {
                         onBack = { showSettings = false },
                     )
                 } else {
-                    HomeScreen(
+                    MainShell(
                         vm = vm,
                         notificationsOn = settings.notifications,
+                        bellsFull = settings.bellsFull,
+                        onBellsFullChange = { full -> store.update { it.copy(bellsFull = full) } },
                         onOpenSettings = { showSettings = true },
                         onEnableNotifications = enableNotifications,
                         onOpenViewer = { request ->

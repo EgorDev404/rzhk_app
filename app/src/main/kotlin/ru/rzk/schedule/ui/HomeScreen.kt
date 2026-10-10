@@ -2,6 +2,7 @@ package ru.rzk.schedule.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -101,6 +102,7 @@ fun HomeScreen(
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // нижний отступ даёт навигационная панель снаружи
         topBar = {
             LargeTopAppBar(
                 title = { Text("Расписание") },

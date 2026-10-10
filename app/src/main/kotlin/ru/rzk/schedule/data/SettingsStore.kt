@@ -12,6 +12,8 @@ data class Settings(
     val intervalMinutes: Int = 15,
     val dynamicColor: Boolean = true,
     val theme: ThemeMode = ThemeMode.System,
+    /** false — таблица звонков из 8 уроков (по умолчанию), true — все 12. */
+    val bellsFull: Boolean = false,
 )
 
 /** Настройки в SharedPreferences + поток для Compose. */
@@ -29,6 +31,7 @@ class SettingsStore(context: Context) {
             .putInt("interval", next.intervalMinutes)
             .putBoolean("dynamic", next.dynamicColor)
             .putString("theme", next.theme.name)
+            .putBoolean("bells_full", next.bellsFull)
             .apply()
         _flow.value = next
     }
@@ -39,5 +42,6 @@ class SettingsStore(context: Context) {
         dynamicColor = prefs.getBoolean("dynamic", true),
         theme = runCatching { ThemeMode.valueOf(prefs.getString("theme", null) ?: "System") }
             .getOrDefault(ThemeMode.System),
+        bellsFull = prefs.getBoolean("bells_full", false),
     )
 }
