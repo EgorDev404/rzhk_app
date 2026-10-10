@@ -45,10 +45,8 @@ class BellsWidget : AppWidgetProvider() {
     }
 
     companion object {
-        
-
         fun buildViews(context: Context): RemoteViews {
-            val views = RemoteViews(context.packageName, LAYOUT)
+            val views = RemoteViews(context.packageName, R.layout.widget_bells)
             val now = LocalDateTime.now(Dates.zone)
             val state = BellSchedule.state(now, BellSchedule.SHORT_DAY)
 
