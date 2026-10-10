@@ -47,7 +47,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.rzk.schedule.data.Dates
 import java.io.File
@@ -69,6 +68,7 @@ fun HomeScreen(
 ) {
     val days by vm.days.collectAsStateWithLifecycle()
     val states by vm.states.collectAsStateWithLifecycle()
+    val pending by vm.pendingDay.collectAsStateWithLifecycle()
     val pagerState = rememberPagerState { days.size }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -80,6 +80,16 @@ fun HomeScreen(
         onPauseOrDispose { }
     }
 
+    // Показ конкретного дня (push или календарь). Работает и при первом появлении экрана.
+    LaunchedEffect(pending, days) {
+        val day = pending ?: return@LaunchedEffect
+        val index = days.indexOf(day)
+        if (index >= 0) {
+            pagerState.animateScrollToPage(index)
+            vm.consumePendingDay()
+        }
+    }
+
     LaunchedEffect(vm) {
         vm.events.collect { event ->
             fun say(text: String) {
@@ -87,10 +97,6 @@ fun HomeScreen(
                 scope.launch { snackbar.showSnackbar(text) }
             }
             when (event) {
-                is UiEvent.ShowDay -> {
-                    val list = vm.days.first { event.day in it }
-                    pagerState.animateScrollToPage(list.indexOf(event.day))
-                }
                 is UiEvent.Refreshed ->
                     say(if (event.changed) "Расписание обновлено" else "Без изменений — у вас актуальная версия")
                 UiEvent.StillOffline -> say("Сайт недоступен — показана сохранённая копия")
@@ -172,13 +178,18 @@ fun HomeScreen(
     }
 }
 
-/** Крупные переключатели «Сегодня / Завтра / …» с индикатором, есть ли расписание на этот день. */
+/**
+ * Крупные переключатели дней с индикатором, есть ли расписание.
+ *
+ * Заголовок таба: «Сегодня» / «Завтра» для первых двух дней, для третьего (это бывает
+ * в пятницу и субботу) — просто день недели, потому что «Послезавтра» не помещается.
+ */
 @Composable
 private fun DayTabs(days: List<LocalDate>, states: Map<LocalDate, DayState>, selected: Int, onSelect: (Int) -> Unit) {
     val today = Dates.today()
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         days.forEachIndexed { index, day ->
             val isSelected = index == selected
@@ -198,16 +209,28 @@ private fun DayTabs(days: List<LocalDate>, states: Map<LocalDate, DayState>, sel
                 modifier = Modifier.weight(1f),
             ) {
                 Column(
-                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(Dates.title(day, today), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        tabTitle(day, today),
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text("${Dates.weekdayShort(day)}, ${Dates.dayMonth(day)}", style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     TabStatus(states[day]?.content)
                 }
             }
         }
     }
+}
+
+/** «Сегодня» / «Завтра» для ближайших двух дней, дальше — день недели с заглавной буквы. */
+private fun tabTitle(day: LocalDate, today: LocalDate): String = when (day.toEpochDay() - today.toEpochDay()) {
+    0L -> "Сегодня"
+    1L -> "Завтра"
+    else -> Dates.weekday(day).replaceFirstChar { it.uppercase() }
 }
 
 @Composable

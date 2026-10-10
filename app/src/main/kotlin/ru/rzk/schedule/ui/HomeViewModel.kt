@@ -21,6 +21,7 @@ import ru.rzk.schedule.data.FetchOutcome
 import ru.rzk.schedule.data.LoadStage
 import ru.rzk.schedule.data.Snapshot
 import java.io.File
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 
@@ -40,7 +41,34 @@ sealed interface UiEvent {
     data class Refreshed(val changed: Boolean) : UiEvent
     data object StillOffline : UiEvent
     data object StillNotPublished : UiEvent
-    data class ShowDay(val day: LocalDate) : UiEvent
+}
+
+/**
+ * Какие дни показывать на главном экране.
+ *
+ *  - пятница и суббота — три дня, включая понедельник: колледж часто выкладывает расписание
+ *    на понедельник заранее, и пользователь должен увидеть его сразу, не дожидаясь выходных;
+ *  - воскресенье — сразу понедельник и вторник (сегодня занятий не бывает);
+ *  - остальные дни — сегодня и завтра.
+ *
+ * Воскресенье никогда не попадает в список: это гарантированно не учебный день.
+ * День из [custom] (выбор в календаре или переход из уведомления) добавляется в конец,
+ * если его ещё нет в списке.
+ */
+internal fun upcomingDays(today: LocalDate, custom: LocalDate?): List<LocalDate> {
+    val wanted = when (today.dayOfWeek) {
+        DayOfWeek.FRIDAY, DayOfWeek.SATURDAY -> 3
+        DayOfWeek.SUNDAY -> 2
+        else -> 2
+    }
+    return buildList {
+        var cursor = today
+        while (size < wanted) {
+            if (cursor.dayOfWeek != DayOfWeek.SUNDAY) add(cursor)
+            cursor = cursor.plusDays(1)
+        }
+        if (custom != null && custom !in this) add(custom)
+    }
 }
 
 class HomeViewModel(app: ScheduleApp) : ViewModel() {
@@ -49,17 +77,17 @@ class HomeViewModel(app: ScheduleApp) : ViewModel() {
     private val today = MutableStateFlow(Dates.today())
     private val custom = MutableStateFlow<LocalDate?>(null)
 
-    /** Сегодня, завтра и (если выбран в календаре) ещё один день. */
+    /** Дни, между которыми можно листать на главном экране. */
     val days: StateFlow<List<LocalDate>> = combine(today, custom) { t, c ->
-        buildList {
-            add(t)
-            add(t.plusDays(1))
-            if (c != null && c != t && c != t.plusDays(1)) add(c)
-        }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, Dates.today().let { listOf(it, it.plusDays(1)) })
+        upcomingDays(t, c)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, upcomingDays(Dates.today(), null))
 
     private val _states = MutableStateFlow<Map<LocalDate, DayState>>(emptyMap())
     val states: StateFlow<Map<LocalDate, DayState>> = _states.asStateFlow()
+
+    /** День, который нужно показать, как только главный экран появится (push, календарь, deep link). */
+    private val _pendingDay = MutableStateFlow<LocalDate?>(null)
+    val pendingDay: StateFlow<LocalDate?> = _pendingDay.asStateFlow()
 
     private val _events = MutableSharedFlow<UiEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<UiEvent> = _events.asSharedFlow()
@@ -70,7 +98,7 @@ class HomeViewModel(app: ScheduleApp) : ViewModel() {
     fun onResume() {
         val now = Dates.today()
         if (now != today.value) today.value = now
-        listOf(now, now.plusDays(1)).plus(listOfNotNull(custom.value)).forEach { load(it, force = false, userInitiated = false) }
+        days.value.forEach { load(it, force = false, userInitiated = false) }
     }
 
     /** Потянули экран вниз: игнорируем кэш и качаем файл заново. */
@@ -78,10 +106,14 @@ class HomeViewModel(app: ScheduleApp) : ViewModel() {
 
     /** Выбор дня в календаре или переход из уведомления. */
     fun showDay(day: LocalDate) {
-        val t = today.value
-        if (day != t && day != t.plusDays(1)) custom.value = day
+        if (day !in days.value) custom.value = day
         load(day, force = false, userInitiated = false)
-        _events.tryEmit(UiEvent.ShowDay(day))
+        _pendingDay.value = day
+    }
+
+    /** Главный экран обработал [pendingDay] и может его сбросить. */
+    fun consumePendingDay() {
+        _pendingDay.value = null
     }
 
     // ---------------------------------------------------------------------------------------------

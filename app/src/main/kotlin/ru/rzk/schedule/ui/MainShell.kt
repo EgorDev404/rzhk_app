@@ -23,7 +23,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,7 +30,6 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import kotlinx.coroutines.delay
 
 private enum class Tab(val title: String, val icon: ImageVector, val selectedIcon: ImageVector) {
     Lessons("Расписание", Icons.Outlined.Today, Icons.Rounded.Today),
@@ -41,6 +39,9 @@ private enum class Tab(val title: String, val icon: ImageVector, val selectedIco
 /**
  * Основная оболочка: нижняя навигация и два экрана — расписание уроков (главный) и звонки.
  * Положение прокрутки и выбранный день на каждом экране сохраняются при переключении вкладок.
+ *
+ * Переход к конкретному дню (push, календарь) обрабатывается внутри [HomeScreen] через
+ * [HomeViewModel.pendingDay], поэтому переключение вкладки не требует задержек.
  */
 @Composable
 fun MainShell(
@@ -57,17 +58,6 @@ fun MainShell(
 
     // С «Звонков» кнопка «назад» возвращает на главный экран, а не закрывает приложение.
     BackHandler(enabled = tab != 0) { tab = 0 }
-
-    // Нажали на уведомление, пока открыты «Звонки»: переходим на расписание и повторяем показ нужного дня.
-    LaunchedEffect(vm) {
-        vm.events.collect { event ->
-            if (event is UiEvent.ShowDay && tab != 0) {
-                tab = 0
-                delay(450) // дождаться, пока главный экран появится и начнёт слушать события
-                vm.showDay(event.day)
-            }
-        }
-    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
