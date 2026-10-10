@@ -45,7 +45,7 @@ class BellsWidget : AppWidgetProvider() {
     }
 
     companion object {
-        const val LAYOUT = R.layout.widget_bells
+        
 
         fun buildViews(context: Context): RemoteViews {
             val views = RemoteViews(context.packageName, LAYOUT)
