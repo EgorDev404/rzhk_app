@@ -13,12 +13,16 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import kotlinx.coroutines.flow.MutableStateFlow
 import ru.rzk.schedule.ui.AppRoot
 import ru.rzk.schedule.ui.HomeViewModel
 import ru.rzk.schedule.work.Notifier
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
+
+    /** Вкладка, которую нужно открыть при следующем показе MainShell (тап по виджету). */
+    val pendingTab = MutableStateFlow<Int?>(null)
 
     private val viewModel: HomeViewModel by viewModels {
         object : ViewModelProvider.Factory {
@@ -50,7 +54,7 @@ class MainActivity : ComponentActivity() {
         //    под сплешем, и переход происходит мгновенно и без мигания.
         Handler(Looper.getMainLooper()).postDelayed(
             { splashFinished = true },
-            splashAnimationDurationMs
+            splashAnimationDurationMs,
         )
 
         // 5. Обработка deep link из уведомления (только при холодном старте).
@@ -58,7 +62,7 @@ class MainActivity : ComponentActivity() {
 
         // 6. Контент ставится сразу — он рендерится под сплешем.
         //    К моменту снятия splash пользователь видит готовый UI.
-        setContent { AppRoot(viewModel) }
+        setContent { AppRoot(viewModel, pendingTab) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -80,10 +84,19 @@ class MainActivity : ComponentActivity() {
             .isAppearanceLightStatusBars = !isDark
     }
 
-    /** Нажали на уведомление — открываем нужный день. */
+    /** Нажали на уведомление — открываем нужный день. Тапнули по виджету — открываем вкладку «Звонки». */
     private fun handle(intent: Intent?) {
         val day = intent?.getStringExtra(Notifier.EXTRA_DAY)
             ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         if (day != null) viewModel.showDay(day)
+
+        val tab = intent?.getIntExtra(EXTRA_OPEN_TAB, -1) ?: -1
+        if (tab >= 0) pendingTab.value = tab
+    }
+
+    companion object {
+        const val EXTRA_OPEN_TAB = "open_tab"
+        const val TAB_SCHEDULE = 0
+        const val TAB_BELLS = 1
     }
 }

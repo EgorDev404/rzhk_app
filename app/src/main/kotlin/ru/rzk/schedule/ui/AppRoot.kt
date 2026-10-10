@@ -30,13 +30,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import ru.rzk.schedule.app
 import ru.rzk.schedule.ui.theme.ScheduleTheme
 import ru.rzk.schedule.work.WorkScheduler
 
 /** Корень интерфейса: тема, переключение «главный экран ↔ настройки» и полноэкранный просмотр поверх. */
 @Composable
-fun AppRoot(vm: HomeViewModel) {
+fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     val context = LocalContext.current
     val store = context.app.settings
     val settings by store.flow.collectAsStateWithLifecycle()
@@ -87,6 +88,7 @@ fun AppRoot(vm: HomeViewModel) {
                 } else {
                     MainShell(
                         vm = vm,
+                        pendingTab = pendingTab,
                         notificationsOn = settings.notifications,
                         bellsFull = settings.bellsFull,
                         onBellsFullChange = { full -> store.update { it.copy(bellsFull = full) } },

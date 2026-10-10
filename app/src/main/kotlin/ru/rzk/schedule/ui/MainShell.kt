@@ -23,6 +23,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,6 +31,8 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.MutableStateFlow
 
 private enum class Tab(val title: String, val icon: ImageVector, val selectedIcon: ImageVector) {
     Lessons("Расписание", Icons.Outlined.Today, Icons.Rounded.Today),
@@ -38,14 +41,15 @@ private enum class Tab(val title: String, val icon: ImageVector, val selectedIco
 
 /**
  * Основная оболочка: нижняя навигация и два экрана — расписание уроков (главный) и звонки.
- * Положение прокрутки и выбранный день на каждом экране сохраняются при переключении вкладок.
  *
- * Переход к конкретному дню (push, календарь) обрабатывается внутри [HomeScreen] через
- * [HomeViewModel.pendingDay], поэтому переключение вкладки не требует задержек.
+ * Переключение вкладки может прийти извне (тап по виджету): [pendingTab] из MainActivity.
+ * Переход к конкретному дню в расписании обрабатывается внутри [HomeScreen] через
+ * [HomeViewModel.pendingDay], поэтому задержек не требуется.
  */
 @Composable
 fun MainShell(
     vm: HomeViewModel,
+    pendingTab: MutableStateFlow<Int?>,
     notificationsOn: Boolean,
     bellsFull: Boolean,
     onBellsFullChange: (Boolean) -> Unit,
@@ -55,6 +59,15 @@ fun MainShell(
 ) {
     var tab by rememberSaveable { mutableStateOf(0) }
     val stateHolder = rememberSaveableStateHolder()
+
+    // Внешний запрос на конкретную вкладку (тап по виджету).
+    val pendingTabValue by pendingTab.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingTabValue) {
+        pendingTabValue?.let { target ->
+            if (target in Tab.entries.indices) tab = target
+            pendingTab.value = null
+        }
+    }
 
     // С «Звонков» кнопка «назад» возвращает на главный экран, а не закрывает приложение.
     BackHandler(enabled = tab != 0) { tab = 0 }

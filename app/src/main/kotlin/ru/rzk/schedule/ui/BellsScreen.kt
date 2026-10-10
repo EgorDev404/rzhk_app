@@ -1,5 +1,10 @@
 package ru.rzk.schedule.ui
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -39,6 +44,7 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Weekend
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +80,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -82,10 +90,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import ru.rzk.schedule.R
 import ru.rzk.schedule.data.Bell
 import ru.rzk.schedule.data.BellSchedule
 import ru.rzk.schedule.data.BellState
 import ru.rzk.schedule.data.Dates
+import ru.rzk.schedule.widget.BellsWidget
 import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
@@ -103,7 +113,7 @@ private fun rememberNow(): State<LocalDateTime> {
     }
 }
 
-private val numeric = TextStyle(fontFeatureSettings = "tnum") // цифры одной ширины: ничего не «дрожит» при отсчёте
+private val numeric = TextStyle(fontFeatureSettings = "tnum")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,10 +127,31 @@ fun BellsScreen(
     val state = BellSchedule.state(now, count)
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    // Предложение добавить виджет — только один раз за всю жизнь приложения.
+    val context = LocalContext.current
+    var showWidgetSuggest by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("ui_state", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("widget_suggested", false)) {
+            showWidgetSuggest = true
+            prefs.edit().putBoolean("widget_suggested", true).apply()
+        }
+    }
+
+    if (showWidgetSuggest) {
+        WidgetSuggestDialog(
+            onAdd = {
+                showWidgetSuggest = false
+                requestPinWidget(context)
+            },
+            onDismiss = { showWidgetSuggest = false },
+        )
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0), // нижний отступ даёт навигационная панель снаружи
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             LargeTopAppBar(
                 title = { Text("Звонки") },
@@ -150,6 +181,44 @@ fun BellsScreen(
     }
 }
 
+// ================================================================== диалог про виджет ====
+
+@Composable
+private fun WidgetSuggestDialog(onAdd: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.widget_suggest_title)) },
+        text = { Text(stringResource(R.string.widget_suggest_message)) },
+        confirmButton = {
+            TextButton(onClick = onAdd) { Text(stringResource(R.string.widget_suggest_yes)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.widget_suggest_no)) }
+        },
+    )
+}
+
+/**
+ * Запрашивает у лаунчера пин виджета. На Android 8+ — через [AppWidgetManager.requestPinAppWidget],
+ * что открывает системный диалог «Добавить на главный экран?». На более старых — открываем
+ * список виджетов, где пользователь сам найдёт наш.
+ */
+private fun requestPinWidget(context: Context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val manager = context.getSystemService(AppWidgetManager::class.java)
+        if (manager?.isRequestPinAppWidgetSupported == true) {
+            val provider = ComponentName(context, BellsWidget::class.java)
+            manager.requestPinAppWidget(provider, null, null)
+            return
+        }
+    }
+    val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
+        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 0)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    runCatching { context.startActivity(intent) }
+}
+
 // ================================================================== карточка «Сейчас» ====
 
 @Composable
@@ -177,7 +246,6 @@ private fun NowCard(state: BellState, canExpand: Boolean, onShowFullDay: () -> U
             },
             label = "nowKind",
         ) { kind ->
-            // Пока старый вариант карточки уходит, он продолжает показывать СВОЁ последнее состояние.
             val holder = remember { StateHolder(latest) }
             if (latest::class == kind) holder.value = latest
             NowContent(holder.value, canExpand, onShowFullDay)
@@ -254,7 +322,6 @@ private fun NowContent(state: BellState, canExpand: Boolean, onShowFullDay: () -
     }
 }
 
-/** Общий каркас карточки: плашка статуса, кольцо прогресса, крупный отсчёт, две «таблетки» и подпись. */
 @Composable
 private fun HeroLayout(
     icon: ImageVector,
@@ -329,7 +396,6 @@ private fun HeroLayout(
 
 @Composable
 private fun ProgressRing(progress: Float, center: @Composable (Float) -> Unit) {
-    // При появлении кольцо «заполняется» от нуля до текущего значения, дальше плавно тянется раз в секунду.
     var started by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { started = true }
     val animated by animateFloatAsState(
@@ -391,16 +457,37 @@ private fun DayLengthSwitch(fullDay: Boolean, onChange: (Boolean) -> Unit) {
 
 private enum class RowStatus { Past, Current, Upcoming, Neutral }
 
-private fun statusOf(bell: Bell, state: BellState): RowStatus = when (state) {
-    is BellState.DayOff -> RowStatus.Neutral
-    is BellState.BeforeClasses -> RowStatus.Upcoming
-    is BellState.InLesson -> when {
-        bell.number < state.bell.number -> RowStatus.Past
-        bell.number == state.bell.number -> RowStatus.Current
-        else -> RowStatus.Upcoming
+/**
+ * Готовые данные для одной строки таблицы, вычисленные один раз на уровне [BellTable].
+ * `data class` важен: благодаря структурному равенству Compose пропускает рекомпозицию
+ * строк, у которых ничего не поменялось.
+ */
+private data class RowUi(
+    val bell: Bell,
+    val status: RowStatus,
+    val currentLesson: BellState.InLesson?,
+    val startsIn: String?,
+)
+
+private fun rowUi(bell: Bell, state: BellState): RowUi {
+    val status = when (state) {
+        is BellState.DayOff -> RowStatus.Neutral
+        is BellState.BeforeClasses -> RowStatus.Upcoming
+        is BellState.InLesson -> when {
+            bell.number < state.bell.number -> RowStatus.Past
+            bell.number == state.bell.number -> RowStatus.Current
+            else -> RowStatus.Upcoming
+        }
+        is BellState.InBreak -> if (bell.number <= state.after.number) RowStatus.Past else RowStatus.Upcoming
+        is BellState.Finished -> RowStatus.Past
     }
-    is BellState.InBreak -> if (bell.number <= state.after.number) RowStatus.Past else RowStatus.Upcoming
-    is BellState.Finished -> RowStatus.Past
+    val current = (state as? BellState.InLesson)?.takeIf { it.bell.number == bell.number }
+    val startsIn = when (state) {
+        is BellState.InBreak -> if (state.next.number == bell.number) BellSchedule.countdown(state.remaining) else null
+        is BellState.BeforeClasses -> if (state.first.number == bell.number) BellSchedule.countdown(state.remaining) else null
+        else -> null
+    }
+    return RowUi(bell, status, current, startsIn)
 }
 
 @Composable
@@ -408,7 +495,6 @@ private fun BellTable(visibleCount: Int, state: BellState) {
     Column(Modifier.fillMaxWidth().animateContentSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         BellSchedule.all.forEachIndexed { index, bell ->
             key(bell.number) {
-                // Строки 9–12 плавно появляются и исчезают при переключении 8 ↔ 12.
                 AnimatedVisibility(
                     visible = bell.number <= visibleCount,
                     enter = expandVertically(tween(350)) + fadeIn(tween(350)),
@@ -422,7 +508,7 @@ private fun BellTable(visibleCount: Int, state: BellState) {
                                 current = (state as? BellState.InBreak)?.takeIf { it.next.number == bell.number },
                             )
                         }
-                        BellRow(bell = bell, status = statusOf(bell, state), state = state)
+                        BellRow(ui = rowUi(bell, state))
                     }
                 }
             }
@@ -459,25 +545,19 @@ private fun BreakChip(minutes: Long, current: BellState.InBreak?) {
 }
 
 @Composable
-private fun BellRow(bell: Bell, status: RowStatus, state: BellState) {
+private fun BellRow(ui: RowUi) {
     val scheme = MaterialTheme.colorScheme
+    val bell = ui.bell
     val container by animateColorAsState(
-        when (status) {
+        when (ui.status) {
             RowStatus.Current -> scheme.primaryContainer
             RowStatus.Past -> scheme.surfaceContainerLow
             else -> scheme.surfaceContainerHigh
         },
         tween(400), label = "rowBg",
     )
-    val fade by animateFloatAsState(if (status == RowStatus.Past) 0.55f else 1f, tween(400), label = "rowFade")
-    val isCurrent = status == RowStatus.Current
-
-    // Сколько осталось до этого урока — только для ближайшего (после перемены или до начала занятий).
-    val startsIn = when (state) {
-        is BellState.InBreak -> if (state.next.number == bell.number) BellSchedule.countdown(state.remaining) else null
-        is BellState.BeforeClasses -> if (state.first.number == bell.number) BellSchedule.countdown(state.remaining) else null
-        else -> null
-    }
+    val fade by animateFloatAsState(if (ui.status == RowStatus.Past) 0.55f else 1f, tween(400), label = "rowFade")
+    val isCurrent = ui.status == RowStatus.Current
 
     Surface(
         shape = RoundedCornerShape(20.dp),
@@ -507,14 +587,15 @@ private fun BellRow(bell: Bell, status: RowStatus, state: BellState) {
                 }
                 when {
                     isCurrent -> Pill("идёт", scheme.primary, scheme.onPrimary)
-                    status == RowStatus.Past -> Icon(Icons.Rounded.CheckCircle, contentDescription = "Прошёл", tint = scheme.primary.copy(alpha = 0.7f))
-                    startsIn != null -> Pill("через $startsIn", scheme.secondaryContainer, scheme.onSecondaryContainer)
+                    ui.status == RowStatus.Past ->
+                        Icon(Icons.Rounded.CheckCircle, contentDescription = "Прошёл", tint = scheme.primary.copy(alpha = 0.7f))
+                    ui.startsIn != null -> Pill("через ${ui.startsIn}", scheme.secondaryContainer, scheme.onSecondaryContainer)
                 }
             }
 
-            AnimatedVisibility(visible = isCurrent && state is BellState.InLesson) {
-                val lesson = state as? BellState.InLesson
-                val progress by animateFloatAsState(lesson?.progress ?: 0f, tween(1000, easing = LinearEasing), label = "rowProgress")
+            val lesson = ui.currentLesson
+            if (lesson != null) {
+                val progress by animateFloatAsState(lesson.progress, tween(1000, easing = LinearEasing), label = "rowProgress")
                 Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     LinearProgressIndicator(
                         progress = { progress },
@@ -523,7 +604,7 @@ private fun BellRow(bell: Bell, status: RowStatus, state: BellState) {
                         trackColor = scheme.onPrimaryContainer.copy(alpha = 0.15f),
                     )
                     Text(
-                        "${((lesson?.progress ?: 0f) * 100).roundToInt()}% · осталось ${BellSchedule.countdown(lesson?.remaining ?: java.time.Duration.ZERO)}",
+                        "${(lesson.progress * 100).roundToInt()}% · осталось ${BellSchedule.countdown(lesson.remaining)}",
                         style = MaterialTheme.typography.labelMedium.merge(numeric),
                     )
                 }

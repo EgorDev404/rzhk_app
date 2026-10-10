@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Расписание</string>
+<string name="widget_bells_label">Звонки</string>
+<string name="widget_bells_description">Показывает текущее состояние звонков: идёт урок, перемена, до конца занятия</string>
+<string name="widget_suggest_title">Добавить виджет на главный экран?</string>
+<string name="widget_suggest_message">Быстрый доступ к звонкам и отсчёту до конца урока прямо с рабочего стола. Можно в любой момент удалить или добавить снова через настройки вашего Лаунчера.</string>
+<string name="widget_suggest_yes">Добавить</string>
+<string name="widget_suggest_no">Не сейчас</string>
 </resources>

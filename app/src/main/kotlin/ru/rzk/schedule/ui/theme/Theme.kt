@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -13,16 +14,16 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import ru.rzk.schedule.data.Settings
 import ru.rzk.schedule.data.ThemeMode
+import ru.rzk.schedule.widget.BellsWidgetUpdater
 
 // Запасная палитра для Android 11 и ниже (и если динамические цвета выключены).
 private val LightColors = lightColorScheme(
@@ -83,6 +84,11 @@ private val AppShapes = Shapes(
 /**
  * [darkBars] — поверх приложения сейчас тёмная поверхность независимо от темы (например, полноэкранный
  * просмотр на чёрном фоне): значки системных панелей должны быть светлыми.
+ *
+ * Обновление значков вынесено в [LaunchedEffect] с ключами, а не в [androidx.compose.runtime.SideEffect]:
+ * иначе IPC-вызов в WindowManager выполнялся бы на каждой рекомпозиции корня.
+ *
+ * Также при смене [colors] сохраняем их для виджета и просим его перерисоваться.
  */
 @Composable
 fun ScheduleTheme(settings: Settings, darkBars: Boolean = false, content: @Composable () -> Unit) {
@@ -92,6 +98,7 @@ fun ScheduleTheme(settings: Settings, darkBars: Boolean = false, content: @Compo
         ThemeMode.Dark -> true
     }
     val context = LocalContext.current
+    val view = LocalView.current
     val colors = when {
         settings.dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -99,14 +106,18 @@ fun ScheduleTheme(settings: Settings, darkBars: Boolean = false, content: @Compo
         else -> LightColors
     }
 
-    // Цвет иконок в строке состояния должен следовать выбранной теме, а не системной.
-    val view = LocalView.current
-    SideEffect {
-        val window = context.findActivity()?.window ?: return@SideEffect
+    LaunchedEffect(dark, darkBars) {
+        val window = context.findActivity()?.window ?: return@LaunchedEffect
         val controller = WindowCompat.getInsetsController(window, view)
         val iconsOnDark = dark || darkBars // тёмный фон → светлые значки
         controller.isAppearanceLightStatusBars = !iconsOnDark
         controller.isAppearanceLightNavigationBars = !iconsOnDark
+    }
+
+    // Сохраняем цвета для виджета и сразу просим его перерисоваться.
+    LaunchedEffect(colors) {
+        WidgetColors.save(context, colors)
+        BellsWidgetUpdater.refreshAll(context)
     }
 
     MaterialTheme(colorScheme = colors, typography = AppTypography, shapes = AppShapes, content = content)
