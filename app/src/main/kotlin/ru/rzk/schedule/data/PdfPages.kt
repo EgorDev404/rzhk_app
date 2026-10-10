@@ -11,11 +11,19 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
-/** Превращает PDF в PNG-страницы средствами самого Android (никаких внешних библиотек). */
+/**
+ * Превращает PDF в JPEG-страницы средствами самого Android.
+ *
+ * JPEG с качеством 92: файл в несколько раз меньше PNG при почти неразличимых артефактах
+ * на чёрном тексте по белому фону. Ширина 1500 px — компромисс между резкостью и весом.
+ */
 object PdfPages {
     private val lock = Mutex() // PdfRenderer не потокобезопасен
 
-    suspend fun render(pdf: File, outDir: File, targetWidth: Int = 2000, maxPages: Int = 10): List<File> =
+    private const val TARGET_WIDTH = 1500
+    private const val JPEG_QUALITY = 92
+
+    suspend fun render(pdf: File, outDir: File, targetWidth: Int = TARGET_WIDTH, maxPages: Int = 10): List<File> =
         withContext(Dispatchers.IO) {
             lock.withLock {
                 val marker = File(outDir, ".done")
@@ -36,8 +44,8 @@ object PdfPages {
                                 val bitmap = Bitmap.createBitmap(targetWidth, height, Bitmap.Config.ARGB_8888)
                                 bitmap.eraseColor(Color.WHITE) // у PDF прозрачный фон — красим в белый
                                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                                val target = File(outDir, "page_${(index + 1).toString().padStart(2, '0')}.png")
-                                FileOutputStream(target).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                                val target = File(outDir, "page_${(index + 1).toString().padStart(2, '0')}.jpg")
+                                FileOutputStream(target).use { bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }
                                 bitmap.recycle()
                                 files += target
                             } finally {

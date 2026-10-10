@@ -51,6 +51,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -65,6 +66,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import ru.rzk.schedule.data.LoadStage
 import java.io.File
@@ -73,6 +76,7 @@ internal const val PAGE_RATIO = 1.414f // A4 в альбомной ориент�
 
 // ---- мерцание (skeleton) ------------------------------------------------------------------------
 
+/** Бегущий блик слева направо — как было изначально. */
 @Composable
 fun Modifier.shimmer(): Modifier {
     val base = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -93,6 +97,40 @@ fun Modifier.shimmer(): Modifier {
                 end = Offset(x + size.width * 0.55f, size.height * 0.3f),
             ),
         )
+    }
+}
+
+// ---- декодирование страниц ----------------------------------------------------------------------
+
+/**
+ * Уже декодированные страницы держим в памяти. Одна копия — для всех экранов:
+ *  - карточки на главном используют [SAMPLE_SMALL] = 2 (750px, как было до оптимизации);
+ *  - полноэкранный просмотр — [SAMPLE_BIG] = 1 (без сэмплинга, полные 1500px, резко при зуме).
+ * Семафор ограничивает параллельное декодирование: больше двух битмапов одновременно
+ * держать в памяти опасно.
+ */
+object PageImageCache {
+    const val SAMPLE_SMALL = 2
+    const val SAMPLE_BIG = 1
+
+    private val semaphore = Semaphore(2)
+    private val cache = object : LruCache<String, ImageBitmap>(48 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * 4
+    }
+
+    private fun key(path: String, sample: Int) = "$sample:$path"
+
+    suspend fun load(file: File, sample: Int): ImageBitmap? {
+        val k = key(file.path, sample)
+        cache.get(k)?.let { return it }
+        return semaphore.withPermit {
+            cache.get(k) ?: decode(file, sample)?.also { cache.put(k, it) }
+        }
+    }
+
+    private suspend fun decode(file: File, sample: Int): ImageBitmap? = withContext(Dispatchers.Default) {
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        runCatching { BitmapFactory.decodeFile(file.path, options)?.asImageBitmap() }.getOrNull()
     }
 }
 
@@ -154,35 +192,14 @@ private fun PulsingDot() {
 
 // ---- страница расписания ------------------------------------------------------------------------
 
-private class LoadedImage(val bitmap: ImageBitmap, val ratio: Float)
-
-private fun decode(file: File, sample: Int): LoadedImage? {
-    val options = BitmapFactory.Options().apply { inSampleSize = sample }
-    val bitmap = BitmapFactory.decodeFile(file.path, options) ?: return null
-    return LoadedImage(bitmap.asImageBitmap(), bitmap.width.toFloat() / bitmap.height)
-}
-
-/** Уже декодированные страницы держим в памяти: при возврате на вкладку заглушка не мелькает. */
-private object ImageCache {
-    private val cache = object : LruCache<String, LoadedImage>(24 * 1024 * 1024) {
-        override fun sizeOf(key: String, value: LoadedImage): Int = value.bitmap.width * value.bitmap.height * 4
-    }
-
-    operator fun get(path: String): LoadedImage? = cache.get(path)
-    operator fun set(path: String, image: LoadedImage) {
-        cache.put(path, image)
-    }
-}
-
-/** Карточка с картинкой расписания: пока декодируется — мерцает, потом плавно проявляется. */
+/** Карточка с превью расписания. Пропорции берутся из реальной картинки, поэтому высота — как у PDF. */
 @Composable
 fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
-    val loaded by produceState<LoadedImage?>(ImageCache[file.path], file) {
-        if (value == null) {
-            value = withContext(Dispatchers.Default) { decode(file, sample = 2) }?.also { ImageCache[file.path] = it }
-        }
+    val image by produceState<ImageBitmap?>(initialValue = null, file) {
+        value = PageImageCache.load(file, PageImageCache.SAMPLE_SMALL)
     }
-    val imageAlpha by animateFloatAsState(if (loaded != null) 1f else 0f, tween(450), label = "imageAlpha")
+    val imageAlpha by animateFloatAsState(if (image != null) 1f else 0f, tween(450), label = "imageAlpha")
+    val ratio = image?.let { it.width.toFloat() / it.height } ?: PAGE_RATIO
 
     // Нажимная подсветка отключена: карточка занимает почти весь экран, и при начале свайпа по ней
     // на долю секунды вспыхивал серый слой. Нажатие по-прежнему открывает просмотр на весь экран.
@@ -194,14 +211,15 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
             onClick = onClick,
         ),
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(loaded?.ratio ?: PAGE_RATIO).animateContentSize()) {
-            Box(Modifier.fillMaxSize().shimmer().graphicsLayer { this.alpha = 1f - imageAlpha })
-            loaded?.let { image ->
+        Box(Modifier.fillMaxWidth().aspectRatio(ratio).animateContentSize()) {
+            if (image == null) {
+                Box(Modifier.fillMaxSize().shimmer())
+            } else {
                 Image(
-                    bitmap = image.bitmap,
+                    bitmap = image!!,
                     contentDescription = label,
                     contentScale = ContentScale.FillWidth,
-                    modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = imageAlpha },
+                    modifier = Modifier.fillMaxSize().alpha(imageAlpha),
                 )
             }
         }
