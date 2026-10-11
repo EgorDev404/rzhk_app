@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Размеры: по умолчанию 4×2; уменьшается до 2×1 и растягивается как угодно (minResize* раньше не были заданы,
-  поэтому виджет нельзя было сделать меньше 4×3). На Android 12+ работают targetCell*, на старых — minWidth/minHeight.
+  Размеры: по умолчанию 4×2, можно уменьшать до 2×1 и растягивать как угодно.
+  Раскладка (Strip / Compact / Full) выбирается в BellsWidget по реальным ширине и высоте экземпляра,
+  а не по minHeight из этого файла. На Android 12+ работают targetCell*, на старых — minWidth/minHeight.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"

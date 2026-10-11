@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Узкая полоса (высота < ~100dp): одна строка — крупный текст и, если хватает ширины, подпись. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background" android:layout_width="match_parent" android:layout_height="match_parent">
     <ImageView android:id="@+id/widget_bg" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitXY" android:src="@drawable/widget_bg" android:contentDescription="@null" />
     <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal"
         android:gravity="center_vertical" android:paddingStart="@dimen/widget_padding" android:paddingEnd="@dimen/widget_padding"
-        android:paddingTop="4dp" android:paddingBottom="4dp">
-        <TextView android:id="@+id/widget_chip" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-            android:ellipsize="end" android:includeFontPadding="false" android:maxLines="1" android:textSize="12sp" android:textStyle="bold" />
-        <FrameLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="8dp">
-            <TextView android:id="@+id/widget_big" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end"
-                android:autoSizeMinTextSize="11sp" android:autoSizeMaxTextSize="22sp" android:autoSizeTextType="uniform" android:autoSizeStepGranularity="1sp" android:fontFeatureSettings="tnum" android:includeFontPadding="false" android:maxLines="1" android:textStyle="bold" />
-            <Chronometer android:id="@+id/widget_big_timer" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end"
-                android:visibility="gone" android:autoSizeMinTextSize="11sp" android:autoSizeMaxTextSize="22sp" android:autoSizeTextType="uniform" android:autoSizeStepGranularity="1sp" android:fontFeatureSettings="tnum" android:includeFontPadding="false" android:maxLines="1" android:textStyle="bold" />
-        </FrameLayout>
+        android:paddingTop="6dp" android:paddingBottom="6dp">
+        <TextView android:id="@+id/widget_big" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:ellipsize="end" android:fontFeatureSettings="tnum" android:includeFontPadding="false" android:maxLines="1"
+            android:textSize="22sp" android:textStyle="bold" />
+        <TextView android:id="@+id/widget_big_label" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:layout_marginStart="8dp" android:ellipsize="end" android:gravity="end" android:includeFontPadding="false"
+            android:maxLines="1" android:textSize="12sp" />
     </LinearLayout>
 </FrameLayout>

@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- На Android 12+ скругления и отступы такие же, как у системных виджетов. -->
-<dimen name="widget_bg_radius">28dp</dimen>
-<dimen name="widget_inner_radius">16dp</dimen>
-<dimen name="widget_padding">16dp</dimen>
+    <!--
+      На Android 12+ лаунчер сам скругляет корневой вид с id android:id/background по своему радиусу.
+      Если фон тоже скруглён (раньше 28dp), а радиус лаунчера меньше, по углам видны тёмные «серпы».
+      Поэтому здесь фон прямоугольный — форму задаёт лаунчер.
+    -->
+    <dimen name="widget_bg_radius">0dp</dimen>
+    <dimen name="widget_inner_radius">16dp</dimen>
+    <dimen name="widget_padding">16dp</dimen>
 </resources>

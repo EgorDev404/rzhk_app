@@ -5,21 +5,20 @@ import android.content.ComponentName
 import android.content.Context
 
 /**
- * Обновление всех экземпляров виджета. Периодичность обеспечивается системным broadcast
- * `ACTION_TIME_TICK`, который приходит каждую минуту — никакого AlarmManager не нужно.
- *
- * Для каждого экземпляра читаем его текущий размер, чтобы не показывать лишние элементы.
+ * Обновление экземпляров виджета. Для каждого экземпляра читаем его актуальные размеры
+ * (`getAppWidgetOptions`), чтобы раскладка и размеры шрифтов соответствовали реальному размеру на экране.
  */
 object BellsWidgetUpdater {
 
     fun refreshAll(context: Context) {
         val manager = AppWidgetManager.getInstance(context) ?: return
         val ids = manager.getAppWidgetIds(ComponentName(context, BellsWidget::class.java))
-        if (ids.isEmpty()) return
+        refresh(context, manager, ids)
+    }
+
+    fun refresh(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { id ->
-            val options = manager.getAppWidgetOptions(id)
-            val size = BellsWidget.SizeClass.from(options)
-            manager.updateAppWidget(id, BellsWidget.buildViews(context, size))
+            manager.updateAppWidget(id, BellsWidget.buildViews(context, manager.getAppWidgetOptions(id)))
         }
     }
 }
