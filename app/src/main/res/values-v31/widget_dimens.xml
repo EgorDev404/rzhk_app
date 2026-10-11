@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- На Android 12+ скругления и отступы такие же, как у системных виджетов. -->
+    <dimen name="widget_bg_radius">@android:dimen/system_app_widget_background_radius</dimen>
+    <dimen name="widget_inner_radius">@android:dimen/system_app_widget_inner_radius</dimen>
+    <dimen name="widget_padding">@android:dimen/system_app_widget_internal_padding</dimen>
+</resources>

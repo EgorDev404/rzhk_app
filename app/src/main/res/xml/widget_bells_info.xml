@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Размеры: по умолчанию 4×2; уменьшается до 2×1 и растягивается как угодно (minResize* раньше не были заданы,
+  поэтому виджет нельзя было сделать меньше 4×3). На Android 12+ работают targetCell*, на старых — minWidth/minHeight.
+-->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
-    android:minHeight="180dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="40dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
-    android:updatePeriodMillis="0"
-    android:initialLayout="@layout/widget_bells"
-    android:previewLayout="@layout/widget_bells"
     android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_bells"
+    android:previewLayout="@layout/widget_bells_preview"
     android:widgetCategory="home_screen"
-    android:widgetFeatures="reconfigurable"
     android:label="@string/widget_bells_label"
     android:description="@string/widget_bells_description" />

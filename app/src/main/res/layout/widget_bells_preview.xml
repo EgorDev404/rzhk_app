@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background" android:layout_width="match_parent" android:layout_height="match_parent">
+    <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY"
+        android:src="@drawable/widget_bg" android:tint="#FF204485" android:contentDescription="@null" />
+    <TextView android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center"
+        android:text="Идёт 3 урок\n22:30" android:textColor="#FFD9E2FF" android:textSize="20sp" android:textStyle="bold" />
+</FrameLayout>
