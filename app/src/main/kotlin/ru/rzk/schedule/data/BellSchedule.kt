@@ -134,6 +134,32 @@ object BellSchedule {
         return if (hours > 0) "$hours ч ${two(minutes)} мин" else "${two(minutes)}:${two(seconds)}"
     }
 
+    /** «24 мин» / «1 ч 15 мин» / «меньше минуты» — без секунд, для виджета. */
+    fun remainingLabel(d: Duration): String {
+        val totalMinutes = d.toMinutes()
+        return when {
+            totalMinutes <= 0 -> "меньше минуты"
+            totalMinutes < 60 -> "$totalMinutes ${plural(totalMinutes, "минута", "минуты", "минут")}"
+            else -> {
+                val hours = totalMinutes / 60
+                val mins = totalMinutes % 60
+                if (mins == 0L) "$hours ${plural(hours, "час", "часа", "часов")}"
+                else "$hours ${plural(hours, "час", "часа", "часов")} $mins ${plural(mins, "минута", "минуты", "минут")}"
+            }
+        }
+    }
+
+    private fun plural(n: Long, one: String, few: String, many: String): String {
+        val mod100 = n % 100
+        val mod10 = n % 10
+        return when {
+            mod100 in 11..19 -> many
+            mod10 == 1L -> one
+            mod10 in 2..4 -> few
+            else -> many
+        }
+    }
+
     /** «45 мин». */
     fun minutes(d: Duration): String = "${d.toMinutes()} мин"
 }

@@ -6,6 +6,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
@@ -72,12 +76,11 @@ class BellsWidget : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_bg, pending)
 
-            applyState(views, state, size)
-            applyThemeColors(context, views, state)
+            applyState(context, views, state, size)
             return views
         }
 
-        private fun applyState(views: RemoteViews, state: BellState, size: SizeClass) {
+        private fun applyState(context: Context, views: RemoteViews, state: BellState, size: SizeClass) {
             val chipText: String
             val bigText: String
             val bigLabel: String
@@ -88,11 +91,12 @@ class BellsWidget : AppWidgetProvider() {
             val footer: String
             val hasStats: Boolean
             val showRing: Boolean
+            val progress: Float
 
             when (state) {
                 is BellState.InLesson -> {
                     chipText = "Идёт ${state.bell.number} урок"
-                    bigText = BellSchedule.countdown(state.remaining)
+                    bigText = BellSchedule.remainingLabel(state.remaining)
                     bigLabel = "до конца урока"
                     statsLeftLabel = "Начался"
                     statsLeftValue = BellSchedule.hm(state.bell.start)
@@ -103,10 +107,11 @@ class BellsWidget : AppWidgetProvider() {
                     } ?: "Это последний урок на сегодня"
                     hasStats = true
                     showRing = true
+                    progress = state.progress
                 }
                 is BellState.InBreak -> {
                     chipText = "Перемена"
-                    bigText = BellSchedule.countdown(state.remaining)
+                    bigText = BellSchedule.remainingLabel(state.remaining)
                     bigLabel = "до начала ${state.next.number} урока"
                     statsLeftLabel = "Урок ${state.after.number} закончился"
                     statsLeftValue = BellSchedule.hm(state.after.end)
@@ -115,10 +120,11 @@ class BellsWidget : AppWidgetProvider() {
                     footer = "Перемена длится ${BellSchedule.minutes(state.total)}"
                     hasStats = true
                     showRing = true
+                    progress = state.progress
                 }
                 is BellState.BeforeClasses -> {
                     chipText = "Занятия ещё не начались"
-                    bigText = BellSchedule.countdown(state.remaining)
+                    bigText = BellSchedule.remainingLabel(state.remaining)
                     bigLabel = "до начала ${state.first.number} урока"
                     statsLeftLabel = "Начало занятий"
                     statsLeftValue = BellSchedule.hm(state.first.start)
@@ -127,6 +133,7 @@ class BellsWidget : AppWidgetProvider() {
                     footer = "${state.first.number} урок: ${BellSchedule.range(state.first)}"
                     hasStats = true
                     showRing = false
+                    progress = 0f
                 }
                 is BellState.Finished -> {
                     chipText = "Занятия закончились"
@@ -140,6 +147,7 @@ class BellsWidget : AppWidgetProvider() {
                         " занятия начнутся в ${BellSchedule.hm(state.firstTomorrow)}"
                     hasStats = false
                     showRing = false
+                    progress = 1f
                 }
                 is BellState.DayOff -> {
                     chipText = "Воскресенье"
@@ -152,6 +160,7 @@ class BellsWidget : AppWidgetProvider() {
                     footer = "В понедельник занятия начнутся в ${BellSchedule.hm(state.nextStart)}"
                     hasStats = false
                     showRing = false
+                    progress = 1f
                 }
             }
 
@@ -161,13 +170,16 @@ class BellsWidget : AppWidgetProvider() {
             val showRingNow = showRing && size != SizeClass.Compact
 
             views.setTextViewText(R.id.widget_chip, chipText)
+            views.setTextViewText(R.id.widget_ring_percent, "${(progress * 100).toInt()}%")
             views.setTextViewText(R.id.widget_big, bigText)
             views.setTextViewText(R.id.widget_big_label, bigLabel)
             views.setTextViewText(R.id.widget_footer, footer)
+
             views.setViewVisibility(R.id.widget_big_label, if (showBigLabel) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_stats, if (showStats) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_footer, if (showFooter) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_ring, if (showRingNow) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_big_timer, View.GONE)
 
             if (showStats) {
                 views.setTextViewText(R.id.widget_stat_left_label, statsLeftLabel)
@@ -176,86 +188,85 @@ class BellsWidget : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_stat_right_value, statsRightValue)
                 views.setViewVisibility(R.id.widget_stat_right, if (statsRightValue.isEmpty()) View.GONE else View.VISIBLE)
             }
-            if (showRingNow && state is BellState.InLesson) {
-                views.setTextViewText(R.id.widget_ring_percent, "${(state.progress * 100).toInt()}%")
-            } else if (showRingNow && state is BellState.InBreak) {
-                views.setTextViewText(R.id.widget_ring_percent, "${(state.progress * 100).toInt()}%")
-            }
+
+            applyThemeColors(context, views, state, progress)
         }
 
-        /**
-         * Цвета берём из темы приложения. Для фонов-«картинок» (ImageView) используем
-         * setImageTintList — setBackgroundTintList их не красит.
-         */
-        private fun applyThemeColors(context: Context, views: RemoteViews, state: BellState) {
+        private fun applyThemeColors(context: Context, views: RemoteViews, state: BellState, progress: Float) {
             val c = WidgetColors.load(context)
 
             val (container, onContainer) = when (state) {
                 is BellState.InLesson -> c.primaryContainer to c.onPrimaryContainer
                 is BellState.InBreak -> c.tertiaryContainer to c.onTertiaryContainer
                 is BellState.BeforeClasses -> c.secondaryContainer to c.onSecondaryContainer
-                // Выходной и «занятия закончились» — используем primary, чтобы не было белого.
                 else -> c.primaryContainer to c.onPrimaryContainer
             }
 
-            // Фон виджета — ImageView, красим через setImageTintList.
-            views.setColorStateList(
-                R.id.widget_bg,
-                "setImageTintList",
-                ColorStateList.valueOf(container),
-            )
-
+            views.setColorStateList(R.id.widget_bg, "setImageTintList", ColorStateList.valueOf(container))
             views.setTextColor(R.id.widget_chip, onContainer)
             views.setTextColor(R.id.widget_big, onContainer)
             views.setTextColor(R.id.widget_ring_percent, onContainer)
-
             views.setTextColor(R.id.widget_big_label, WidgetColors.withAlpha(onContainer, 0.8f))
             views.setTextColor(R.id.widget_footer, WidgetColors.withAlpha(onContainer, 0.85f))
 
-            // Чип — тоже ImageView.
-            views.setColorStateList(
-                R.id.widget_chip_bg,
-                "setImageTintList",
-                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.12f)),
-            )
+            views.setColorStateList(R.id.widget_chip_bg, "setImageTintList",
+                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.12f)))
 
-            // «Таблетки» статистики: фон — FrameLayout (setBackgroundTintList),
-            // картинка-pill внутри — ImageView (setImageTintList).
-            views.setColorStateList(
-                R.id.widget_stat_left,
-                "setBackgroundTintList",
-                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)),
-            )
-            views.setColorStateList(
-                R.id.widget_stat_right,
-                "setBackgroundTintList",
-                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)),
-            )
-            views.setColorStateList(
-                R.id.widget_stat_left_bg,
-                "setImageTintList",
-                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)),
-            )
-            views.setColorStateList(
-                R.id.widget_stat_right_bg,
-                "setImageTintList",
-                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)),
-            )
+            views.setColorStateList(R.id.widget_stat_left, "setBackgroundTintList",
+                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)))
+            views.setColorStateList(R.id.widget_stat_right, "setBackgroundTintList",
+                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)))
+            views.setColorStateList(R.id.widget_stat_left_bg, "setImageTintList",
+                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)))
+            views.setColorStateList(R.id.widget_stat_right_bg, "setImageTintList",
+                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)))
             views.setTextColor(R.id.widget_stat_left_label, WidgetColors.withAlpha(onContainer, 0.75f))
             views.setTextColor(R.id.widget_stat_left_value, onContainer)
             views.setTextColor(R.id.widget_stat_right_label, WidgetColors.withAlpha(onContainer, 0.75f))
             views.setTextColor(R.id.widget_stat_right_value, onContainer)
 
-            views.setColorStateList(
-                R.id.widget_chip_icon,
-                "setImageTintList",
-                ColorStateList.valueOf(onContainer),
+            views.setColorStateList(R.id.widget_chip_icon, "setImageTintList",
+                ColorStateList.valueOf(onContainer))
+
+            val ringBitmap = renderProgressRing(
+                size = 140,
+                progress = progress,
+                trackColor = WidgetColors.withAlpha(onContainer, 0.14f),
+                progressColor = onContainer,
+                strokeWidth = 14f,
             )
-            views.setColorStateList(
-                R.id.widget_ring_image,
-                "setImageTintList",
-                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.14f)),
-            )
+            views.setImageViewBitmap(R.id.widget_ring_image, ringBitmap)
+        }
+
+        private fun renderProgressRing(
+            size: Int,
+            progress: Float,
+            trackColor: Int,
+            progressColor: Int,
+            strokeWidth: Float,
+        ): Bitmap {
+            val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            val inset = strokeWidth / 2f
+            val rect = RectF(inset, inset, size - inset, size - inset)
+
+            val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                color = trackColor
+                this.strokeWidth = strokeWidth
+                strokeCap = Paint.Cap.ROUND
+            }
+            canvas.drawArc(rect, 0f, 360f, false, trackPaint)
+
+            val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                color = progressColor
+                this.strokeWidth = strokeWidth
+                strokeCap = Paint.Cap.ROUND
+            }
+            canvas.drawArc(rect, -90f, 360f * progress.coerceIn(0f, 1f), false, progressPaint)
+
+            return bmp
         }
     }
 }
