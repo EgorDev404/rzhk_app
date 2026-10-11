@@ -86,7 +86,7 @@ class BellsWidget : AppWidgetProvider() {
 
     companion object {
         fun buildViews(context: Context, size: SizeClass = SizeClass.Full): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_bells)
+            val views = RemoteViews(context.packageName, R.layout.widget_bells_large)
             val now = LocalDateTime.now(Dates.zone)
             val state = BellSchedule.state(now, BellSchedule.SHORT_DAY)
 
@@ -101,7 +101,7 @@ class BellsWidget : AppWidgetProvider() {
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            views.setOnClickPendingIntent(R.id.widget_root, pending)
+            views.setOnClickPendingIntent(R.id.widget_bg, pending)
 
             applyState(views, state, size)
             applyThemeColors(context, views, state)
@@ -203,11 +203,11 @@ class BellsWidget : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_ring, if (showRingNow) View.VISIBLE else View.GONE)
 
             if (showStats) {
-                views.setTextViewText(R.id.widget_stats_left_label, statsLeftLabel)
-                views.setTextViewText(R.id.widget_stats_left_value, statsLeftValue)
-                views.setTextViewText(R.id.widget_stats_right_label, statsRightLabel)
-                views.setTextViewText(R.id.widget_stats_right_value, statsRightValue)
-                views.setViewVisibility(R.id.widget_stats_right, if (statsRightValue.isEmpty()) View.GONE else View.VISIBLE)
+                views.setTextViewText(R.id.widget_stat_left_label, statsLeftLabel)
+                views.setTextViewText(R.id.widget_stat_left_value, statsLeftValue)
+                views.setTextViewText(R.id.widget_stat_right_label, statsRightLabel)
+                views.setTextViewText(R.id.widget_stat_right_value, statsRightValue)
+                views.setViewVisibility(R.id.widget_stat_right, if (statsRightValue.isEmpty()) View.GONE else View.VISIBLE)
             }
             if (showRingNow && state is BellState.InLesson) {
                 views.setTextViewText(R.id.widget_ring_percent, "${(state.progress * 100).toInt()}%")
@@ -228,7 +228,7 @@ class BellsWidget : AppWidgetProvider() {
             }
 
             views.setColorStateList(
-                R.id.widget_root,
+                R.id.widget_bg,
                 "setBackgroundTintList",
                 ColorStateList.valueOf(container),
             )
@@ -241,25 +241,25 @@ class BellsWidget : AppWidgetProvider() {
             views.setTextColor(R.id.widget_footer, WidgetColors.withAlpha(onContainer, 0.85f))
 
             views.setColorStateList(
-                R.id.widget_chip_container,
+                R.id.widget_chip_bg,
                 "setBackgroundTintList",
                 ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.12f)),
             )
 
             views.setColorStateList(
-                R.id.widget_stats_left,
+                R.id.widget_stat_left,
                 "setBackgroundTintList",
                 ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)),
             )
             views.setColorStateList(
-                R.id.widget_stats_right,
+                R.id.widget_stat_right,
                 "setBackgroundTintList",
                 ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)),
             )
-            views.setTextColor(R.id.widget_stats_left_label, WidgetColors.withAlpha(onContainer, 0.75f))
-            views.setTextColor(R.id.widget_stats_left_value, onContainer)
-            views.setTextColor(R.id.widget_stats_right_label, WidgetColors.withAlpha(onContainer, 0.75f))
-            views.setTextColor(R.id.widget_stats_right_value, onContainer)
+            views.setTextColor(R.id.widget_stat_left_label, WidgetColors.withAlpha(onContainer, 0.75f))
+            views.setTextColor(R.id.widget_stat_left_value, onContainer)
+            views.setTextColor(R.id.widget_stat_right_label, WidgetColors.withAlpha(onContainer, 0.75f))
+            views.setTextColor(R.id.widget_stat_right_value, onContainer)
 
             views.setColorStateList(
                 R.id.widget_chip_icon,
