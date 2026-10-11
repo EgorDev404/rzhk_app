@@ -45,8 +45,9 @@
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification" />
 
-        <!-- Виджет «Звонки». TIME_TICK через манифест получить нельзя, поэтому обновления идут по точному будильнику
-             (WidgetAlarm), а здесь — только реальные триггеры: загрузка, смена времени/пояса/даты, обновление приложения. -->
+        <!-- Виджет «Звонки». Раз в минуту во время занятий его обновляет точный будильник (WidgetAlarm → ACTION_TICK, явный
+             intent, фильтр не нужен). Будильники сбрасываются при перезагрузке, поэтому здесь — триггеры восстановления:
+             загрузка, смена времени/пояса/даты, обновление приложения. -->
         <receiver
             android:name=".widget.BellsWidget"
             android:exported="true">

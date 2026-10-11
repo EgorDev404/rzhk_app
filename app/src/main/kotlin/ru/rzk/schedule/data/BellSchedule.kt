@@ -4,6 +4,7 @@ import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.temporal.ChronoUnit
 
 /** Один урок в расписании звонков. */
 data class Bell(val number: Int, val start: LocalTime, val end: LocalTime) {
@@ -110,6 +111,28 @@ object BellSchedule {
         }
         val tomorrowIsSunday = now.dayOfWeek.plus(1) == DayOfWeek.SUNDAY
         return BellState.Finished(lessons.last(), first.start, tomorrowIsMonday = tomorrowIsSunday)
+    }
+
+    /**
+     * Когда виджету нужно перерисоваться в следующий раз (по часам колледжа).
+     * Урок и перемена — каждую минуту, до начала занятий — раз в 10 минут, а за час до первого урока тоже каждую минуту;
+     * когда звонков больше нет (конец дня, воскресенье) — в полночь, ведь меняется «Завтра/В понедельник».
+     */
+    fun nextRefresh(now: LocalDateTime, count: Int = FULL_DAY): LocalDateTime {
+        val nextMinute = now.truncatedTo(ChronoUnit.MINUTES).plusMinutes(1)
+        return when (val s = state(now, count)) {
+            is BellState.InLesson, is BellState.InBreak -> nextMinute
+            is BellState.BeforeClasses -> {
+                val hourBefore = now.toLocalDate().atTime(s.first.start).minusHours(1)
+                if (now.isBefore(hourBefore)) {
+                    val tenMinutes = now.truncatedTo(ChronoUnit.MINUTES).plusMinutes(10)
+                    if (tenMinutes.isBefore(hourBefore)) tenMinutes else hourBefore
+                } else {
+                    nextMinute
+                }
+            }
+            is BellState.Finished, is BellState.DayOff -> now.toLocalDate().plusDays(1).atStartOfDay()
+        }
     }
 
     private fun ratio(part: Duration, whole: Duration): Float =

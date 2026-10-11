@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write   # ← нужно для создания релиза
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,6 +39,14 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
+      # Читаем versionName из Gradle — тег релиза будет совпадать с версией в приложении
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Версия: $VERSION"
+
       - name: Unit tests
         continue-on-error: true
         run: gradle :app:testReleaseUnitTest --no-daemon --stacktrace
@@ -56,16 +67,29 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload release APK
+      - name: Upload release APK (Artifacts)
         uses: actions/upload-artifact@v4
         with:
           name: raspisanie-release
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: ignore
 
-      - name: Upload debug APK
+      - name: Upload debug APK (Artifacts)
         uses: actions/upload-artifact@v4
         with:
           name: raspisanie-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: ignore
+
+      # Публикация в GitHub Releases (публично видно всем)
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          name: Release v${{ steps.version.outputs.name }}
+          files: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/debug/*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: false

@@ -69,4 +69,19 @@ class BellScheduleTest {
         assertEquals("1 ч 12 мин", BellSchedule.countdown(Duration.ofMinutes(72)))
         assertEquals("08:05", BellSchedule.hm(LocalTime.of(8, 5)))
     }
+    @Test fun widgetRefreshesEveryMinuteDuringLessonsAndBreaks() {
+        assertEquals(at(7, 10, 38), BellSchedule.nextRefresh(at(7, 10, 37, 30), 8))   // урок
+        assertEquals(at(7, 9, 17), BellSchedule.nextRefresh(at(7, 9, 16, 5), 8))      // перемена
+    }
+
+    @Test fun widgetRefreshBeforeClasses() {
+        assertEquals(at(7, 7, 31), BellSchedule.nextRefresh(at(7, 7, 30), 8))          // последний час — каждую минуту
+        assertEquals(at(7, 7, 10), BellSchedule.nextRefresh(at(7, 7, 0), 8))           // дальше — раз в 10 минут
+        assertEquals(at(7, 7, 30), BellSchedule.nextRefresh(at(7, 7, 25), 8))          // но не позже «часа до»
+    }
+
+    @Test fun widgetRefreshesAtMidnightWhenNoBells() {
+        assertEquals(at(8, 0, 0), BellSchedule.nextRefresh(at(7, 17, 0), 8))           // занятия закончились
+        assertEquals(at(5, 0, 0), BellSchedule.nextRefresh(at(4, 12, 0), 8))           // воскресенье
+    }
 }

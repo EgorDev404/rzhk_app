@@ -33,7 +33,7 @@ class BellsWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
-            Intent.ACTION_TIME_TICK,
+            WidgetAlarm.ACTION_TICK,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,
             Intent.ACTION_DATE_CHANGED,
@@ -42,6 +42,14 @@ class BellsWidget : AppWidgetProvider() {
             Intent.ACTION_CONFIGURATION_CHANGED,
             -> BellsWidgetUpdater.refreshAll(context)
         }
+    }
+
+    override fun onEnabled(context: Context) {
+        WidgetAlarm.schedule(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        WidgetAlarm.cancel(context)
     }
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {

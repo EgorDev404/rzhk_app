@@ -17,8 +17,8 @@ android {
         applicationId = "ru.rzk.schedule"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 10
+        versionName = "2.1.1"
     }
 
     // Один и тот же ключ для всех сборок: новую версию можно ставить поверх старой без потери кэша.
