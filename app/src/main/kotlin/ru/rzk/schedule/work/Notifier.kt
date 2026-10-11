@@ -14,8 +14,8 @@ import java.time.LocalDate
 
 object Notifier {
     /** Id канала. Важность канала после создания меняет только пользователь, поэтому при смене — новый id. */
-    const val CHANNEL = "schedule_v2"
-    private const val OLD_CHANNEL = "schedule"
+    const val CHANNEL = "schedule_v3"
+    private const val OLD_CHANNEL = "schedule_v2"
     const val EXTRA_DAY = "day"
 
     fun createChannel(context: Context) {

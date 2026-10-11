@@ -28,10 +28,10 @@
                 android:translateX="8"
                 android:translateY="8">
 
-                <!-- Нижняя часть: основание с «язычком» -->
+                <!-- Нижняя часть: основание с симметричным «язычком» -->
                 <path
                     android:name="pathBottom"
-                    android:pathData="M 5 13.431 L 5 16 C 5 18.398 8.205 20 12 20 C 15.795 20 19 18.398 19 16 L 19 13.431 L 13.114 15.785 C 12.897 15.863 12.238 16.069 11.629 15.785 L 10.886 15.785 Z"
+                    android:pathData="M 5 13.431 L 5 16 C 5 18.398 8.205 20 12 20 C 15.795 20 19 18.398 19 16 L 19 13.431 L 13.114 15.785 C 13.114 15.785 12.5 16.4 12 16.4 C 11.5 16.4 10.886 15.785 10.886 15.785 Z"
                     android:fillColor="#000"
                     android:fillAlpha="0"
                     android:strokeColor="@color/splash_icon"
