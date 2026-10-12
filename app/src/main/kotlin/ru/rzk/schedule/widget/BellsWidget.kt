@@ -209,8 +209,8 @@ class BellsWidget : AppWidgetProvider() {
             views.setTextColor(R.id.widget_big_label, WidgetColors.withAlpha(onContainer, 0.8f))
             views.setTextColor(R.id.widget_footer, WidgetColors.withAlpha(onContainer, 0.85f))
 
-            views.setColorStateList(R.id.widget_chip_bg, "setImageTintList",
-                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.12f)))
+            views.setColorStateList(R.id.widget_chip_container, "setBackgroundTintList",
+    ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.12f)))
 
             views.setColorStateList(R.id.widget_stat_left, "setBackgroundTintList",
                 ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)))
