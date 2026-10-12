@@ -17,17 +17,6 @@ import ru.rzk.schedule.data.Dates
 import ru.rzk.schedule.ui.theme.WidgetColors
 import java.time.LocalDateTime
 
-/**
- * Виджет с текущим состоянием звонков. Копия карточки «Сейчас» с экрана «Звонки».
- *
- * Цвета берутся из [WidgetColors] — они сохраняются при смене темы в приложении.
- * При смене темы приложение вызывает [BellsWidgetUpdater.refreshAll], и виджет
- * немедленно перерисовывается в новых цветах.
- *
- * Чтобы содержимое не обрезалось при изменении размера, виджет подстраивает
- * набор видимых элементов под доступную высоту: чем меньше высота — тем меньше
- * элементов показывается. Логика в [SizeClass].
- */
 class BellsWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -41,36 +30,19 @@ class BellsWidget : AppWidgetProvider() {
         }
     }
 
-    override fun onUpdate(
-        context: Context,
-        manager: AppWidgetManager,
-        ids: IntArray,
-    ) {
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { id ->
             val options = manager.getAppWidgetOptions(id)
             manager.updateAppWidget(id, buildViews(context, SizeClass.from(options)))
         }
     }
 
-    override fun onAppWidgetOptionsChanged(
-        context: Context,
-        manager: AppWidgetManager,
-        id: Int,
-        newOptions: Bundle,
-    ) {
-        // Пользователь изменил размер — перерисовать с новым набором элементов.
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, newOptions: Bundle) {
         manager.updateAppWidget(id, buildViews(context, SizeClass.from(newOptions)))
     }
 
-    /**
-     * Сколько контента помещается в текущий размер виджета.
-     * Пороги подобраны так, чтобы на минимальной высоте помещались чип + отсчёт,
-     * а на максимальной — всё, включая футер.
-     */
     enum class SizeClass {
-        Compact,    // ~110dp высоты: чип, процент, большой текст
-        Normal,     // ~150dp: + статистика (Начался / Закончится)
-        Full;       // ~180dp+: + футер с подписью
+        Compact, Normal, Full;
 
         companion object {
             fun from(options: Bundle): SizeClass {
@@ -90,15 +62,12 @@ class BellsWidget : AppWidgetProvider() {
             val now = LocalDateTime.now(Dates.zone)
             val state = BellSchedule.state(now, BellSchedule.SHORT_DAY)
 
-            // Тап по любой части виджета — открыть приложение на вкладке «Звонки».
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(MainActivity.EXTRA_OPEN_TAB, MainActivity.TAB_BELLS)
             }
             val pending = PendingIntent.getActivity(
-                context,
-                0,
-                intent,
+                context, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             views.setOnClickPendingIntent(R.id.widget_bg, pending)
@@ -108,7 +77,6 @@ class BellsWidget : AppWidgetProvider() {
             return views
         }
 
-        /** Заполняет тексты и видимость блоков в соответствии с [state] и размером [size]. */
         private fun applyState(views: RemoteViews, state: BellState, size: SizeClass) {
             val chipText: String
             val bigText: String
@@ -187,7 +155,6 @@ class BellsWidget : AppWidgetProvider() {
                 }
             }
 
-            // Что показываем в зависимости от размера.
             val showStats = hasStats && size != SizeClass.Compact
             val showFooter = size == SizeClass.Full
             val showBigLabel = size != SizeClass.Compact
@@ -216,7 +183,10 @@ class BellsWidget : AppWidgetProvider() {
             }
         }
 
-        /** Применяет цвета из текущей темы приложения: фон, текст, иконки, чипы. */
+        /**
+         * Цвета берём из темы приложения. Для фонов-«картинок» (ImageView) используем
+         * setImageTintList — setBackgroundTintList их не красит.
+         */
         private fun applyThemeColors(context: Context, views: RemoteViews, state: BellState) {
             val c = WidgetColors.load(context)
 
@@ -224,12 +194,14 @@ class BellsWidget : AppWidgetProvider() {
                 is BellState.InLesson -> c.primaryContainer to c.onPrimaryContainer
                 is BellState.InBreak -> c.tertiaryContainer to c.onTertiaryContainer
                 is BellState.BeforeClasses -> c.secondaryContainer to c.onSecondaryContainer
-                else -> c.surfaceContainerHigh to c.onSurface
+                // Выходной и «занятия закончились» — используем primary, чтобы не было белого.
+                else -> c.primaryContainer to c.onPrimaryContainer
             }
 
+            // Фон виджета — ImageView, красим через setImageTintList.
             views.setColorStateList(
                 R.id.widget_bg,
-                "setBackgroundTintList",
+                "setImageTintList",
                 ColorStateList.valueOf(container),
             )
 
@@ -240,12 +212,15 @@ class BellsWidget : AppWidgetProvider() {
             views.setTextColor(R.id.widget_big_label, WidgetColors.withAlpha(onContainer, 0.8f))
             views.setTextColor(R.id.widget_footer, WidgetColors.withAlpha(onContainer, 0.85f))
 
+            // Чип — тоже ImageView.
             views.setColorStateList(
                 R.id.widget_chip_bg,
-                "setBackgroundTintList",
+                "setImageTintList",
                 ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.12f)),
             )
 
+            // «Таблетки» статистики: фон — FrameLayout (setBackgroundTintList),
+            // картинка-pill внутри — ImageView (setImageTintList).
             views.setColorStateList(
                 R.id.widget_stat_left,
                 "setBackgroundTintList",
@@ -254,6 +229,16 @@ class BellsWidget : AppWidgetProvider() {
             views.setColorStateList(
                 R.id.widget_stat_right,
                 "setBackgroundTintList",
+                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)),
+            )
+            views.setColorStateList(
+                R.id.widget_stat_left_bg,
+                "setImageTintList",
+                ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)),
+            )
+            views.setColorStateList(
+                R.id.widget_stat_right_bg,
+                "setImageTintList",
                 ColorStateList.valueOf(WidgetColors.withAlpha(onContainer, 0.10f)),
             )
             views.setTextColor(R.id.widget_stat_left_label, WidgetColors.withAlpha(onContainer, 0.75f))
