@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 enum class ThemeMode { System, Light, Dark }
 
 data class Settings(
-    val notifications: Boolean = false,
+    val notifications: Boolean = true,
     val intervalMinutes: Int = 15,
     val dynamicColor: Boolean = true,
     val theme: ThemeMode = ThemeMode.System,
@@ -37,7 +37,7 @@ class SettingsStore(context: Context) {
     }
 
     private fun read() = Settings(
-        notifications = prefs.getBoolean("notifications", false),
+        notifications = prefs.getBoolean("notifications", true),
         intervalMinutes = prefs.getInt("interval", 15),
         dynamicColor = prefs.getBoolean("dynamic", true),
         theme = runCatching { ThemeMode.valueOf(prefs.getString("theme", null) ?: "System") }

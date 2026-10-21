@@ -11,9 +11,9 @@ import ru.rzk.schedule.data.FetchOutcome
 import java.time.LocalDate
 
 /**
- * Принимает push, пока приложение открыто (в фоне и когда приложение закрыто, уведомление показывает
- * сама система — так надёжнее всего). Показываем его сами и заодно качаем свежий файл в кэш,
- * чтобы по нажатию расписание открылось мгновенно.
+ * Принимает push от Firebase Cloud Messaging.
+ * Показывает уведомление и кэширует свежий файл, чтобы по нажатию
+ * расписание открывалось мгновенно.
  */
 class PushService : FirebaseMessagingService() {
 
@@ -33,6 +33,12 @@ class PushService : FirebaseMessagingService() {
         if (outcome is FetchOutcome.Ok && !outcome.stale) repository.markSeen(day, outcome.snapshot.sha256)
     }
 
-    /** Подписка на тему привязана к устройству и переживает смену токена — ничего делать не нужно. */
-    override fun onNewToken(token: String) = Unit
+    /** Гарантируем переподписку на тему при обновлении/ротации токена устройством. */
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        runCatching {
+            val settings = applicationContext.app.settings.current
+            Push.sync(applicationContext, settings.notifications)
+        }
+    }
 }

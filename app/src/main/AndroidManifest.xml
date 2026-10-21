@@ -33,6 +33,7 @@
         <!-- Push с сервера (Firebase Cloud Messaging) -->
         <service
             android:name=".work.PushService"
+            android:directBootAware="true"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
@@ -40,7 +41,7 @@
         </service>
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="schedule_v2" />
+            android:value="schedule_v3" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification" />

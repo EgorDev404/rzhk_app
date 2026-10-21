@@ -1,6 +1,7 @@
 package ru.rzk.schedule.work
 
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -19,11 +20,18 @@ object Notifier {
     const val EXTRA_DAY = "day"
 
     fun createChannel(context: Context) {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        manager.deleteNotificationChannel(OLD_CHANNEL) // старый канал был с обычной важностью
+
         val channel = NotificationChannel(CHANNEL, "Расписание", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "Сообщает, когда расписание выложено или изменено"
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 250, 150, 250)
+            enableLights(true)
+            lightColor = 0xFF1976D2.toInt()
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setShowBadge(true)
         }
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.deleteNotificationChannel(OLD_CHANNEL) // старый канал был с обычной важностью
         manager.createNotificationChannel(channel)
     }
 
@@ -41,7 +49,10 @@ object Notifier {
             putExtra(EXTRA_DAY, day.toString())
         }
         val pending = PendingIntent.getActivity(
-            context, day.toEpochDay().toInt(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            context,
+            day.toEpochDay().toInt(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
@@ -50,7 +61,10 @@ object Notifier {
             .setContentIntent(pending)
             .setAutoCancel(true)
             .setOnlyAlertOnce(true) // замена существующего уведомления — без повторного звука
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .build()
         try {
             manager.notify(day.toString(), 0, notification)
