@@ -157,9 +157,13 @@ object BellSchedule {
         return if (hours > 0) "$hours ч ${two(minutes)} мин" else "${two(minutes)}:${two(seconds)}"
     }
 
-    /** «24 мин» / «1 ч 15 мин» / «меньше минуты» — без секунд, для виджета. */
+    /**
+     * «24 минуты» / «1 час 15 минут» / «меньше минуты» — без секунд, для виджета.
+     * Минуты округляются ВВЕРХ: в 14:36:02 до звонка 15:20 осталось 43:58 — так и говорим «44 минуты»,
+     * как на часах. Раньше округляло вниз и виджет показывал на минуту меньше.
+     */
     fun remainingLabel(d: Duration): String {
-        val totalMinutes = d.toMinutes()
+        val totalMinutes = (d.seconds.coerceAtLeast(0) + 59) / 60
         return when {
             totalMinutes <= 0 -> "меньше минуты"
             totalMinutes < 60 -> "$totalMinutes ${plural(totalMinutes, "минута", "минуты", "минут")}"

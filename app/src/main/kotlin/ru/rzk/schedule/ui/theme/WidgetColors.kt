@@ -3,6 +3,7 @@ package ru.rzk.schedule.ui.theme
 import android.content.Context
 import android.graphics.Color
 import androidx.compose.material3.ColorScheme
+import androidx.compose.ui.graphics.toArgb
 
 object WidgetColors {
     private const val PREFS = "widget_colors"
@@ -74,10 +75,3 @@ object WidgetColors {
     private val DEFAULT_ON_SURFACE = 0xFFE3E2E9.toInt()
     private val DEFAULT_ON_SURFACE_VARIANT = 0xFFC5C6D0.toInt()
 }
-
-private fun androidx.compose.ui.graphics.Color.toArgb(): Int = android.graphics.Color.argb(
-    (alpha * 255).toInt(),
-    (red * 255).toInt(),
-    (green * 255).toInt(),
-    (blue * 255).toInt(),
-)

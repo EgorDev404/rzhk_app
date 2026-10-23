@@ -23,12 +23,15 @@ object WidgetAlarm {
     const val ACTION_TICK = "ru.rzk.schedule.widget.ACTION_TICK"
     private const val REQUEST_CODE = 4101
 
+    /** Запас после границы минуты: если будильник сработает на миллисекунды раньше, виджет не покажет «на минуту больше». */
+    private const val TICK_DELAY_MS = 1_000L
+
     /** Ставит (или перезаписывает) будильник на ближайшее нужное обновление. */
     fun schedule(context: Context) {
         val alarms = context.getSystemService(AlarmManager::class.java) ?: return
         val now = LocalDateTime.now(Dates.zone)
-        val triggerAt = BellSchedule.nextRefresh(now, BellSchedule.SHORT_DAY)
-            .atZone(Dates.zone).toInstant().toEpochMilli()
+        val triggerAt = BellSchedule.nextRefresh(now, BellsWidgetUpdater.lessonCount(context))
+            .atZone(Dates.zone).toInstant().toEpochMilli() + TICK_DELAY_MS
         val pending = pendingIntent(context)
 
         val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()

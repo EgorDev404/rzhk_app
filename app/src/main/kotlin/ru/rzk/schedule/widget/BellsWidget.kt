@@ -39,7 +39,6 @@ class BellsWidget : AppWidgetProvider() {
             Intent.ACTION_DATE_CHANGED,
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED,
-            Intent.ACTION_CONFIGURATION_CHANGED,
             -> BellsWidgetUpdater.refreshAll(context)
         }
     }
@@ -96,6 +95,9 @@ class BellsWidget : AppWidgetProvider() {
         private const val DEFAULT_WIDTH_DP = 250f
         private const val DEFAULT_HEIGHT_DP = 110f
 
+        /** RemoteViews(Map) на Android 12+ принимает не больше 16 размеров. */
+        private const val MAX_SIZES = 16
+
         /** Ниже этой высоты — однострочная полоса. */
         private const val STRIP_MAX_HEIGHT = 100f
 
@@ -134,7 +136,7 @@ class BellsWidget : AppWidgetProvider() {
          */
         fun buildViews(context: Context, options: Bundle): RemoteViews {
             val now = LocalDateTime.now(Dates.zone)
-            val state = BellSchedule.state(now, BellSchedule.SHORT_DAY)
+            val state = BellSchedule.state(now, BellsWidgetUpdater.lessonCount(context))
             val content = contentFor(state)
             val palette = paletteFor(context, state)
             val sizes = resolveSizes(context, options)
@@ -149,7 +151,7 @@ class BellsWidget : AppWidgetProvider() {
         private fun resolveSizes(context: Context, options: Bundle): List<SizeF> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val list = options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
-                if (!list.isNullOrEmpty()) return list.distinct()
+                if (!list.isNullOrEmpty()) return list.distinct().take(MAX_SIZES)
             }
             // До Android 12: в портрете ширина = MIN_WIDTH, высота = MAX_HEIGHT; в ландшафте — наоборот.
             // Раньше везде брался MIN_HEIGHT (высота в ландшафте), из-за этого в портрете виджет считался ниже, чем есть.

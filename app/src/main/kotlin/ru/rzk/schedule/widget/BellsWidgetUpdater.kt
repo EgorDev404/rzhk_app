@@ -3,6 +3,7 @@ package ru.rzk.schedule.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import ru.rzk.schedule.data.BellSchedule
 
 /**
  * Обновление экземпляров виджета. Для каждого экземпляра читаем его актуальные размеры
@@ -26,5 +27,13 @@ object BellsWidgetUpdater {
             manager.updateAppWidget(id, BellsWidget.buildViews(context, manager.getAppWidgetOptions(id)))
         }
         WidgetAlarm.schedule(context)
+    }
+
+    /** Сколько уроков в дне: 8 или 12 — то же переключатель, что на экране «Звонки» (SettingsStore, ключ bells_full). */
+    fun lessonCount(context: Context): Int {
+        val full = context.applicationContext
+            .getSharedPreferences("settings", Context.MODE_PRIVATE)
+            .getBoolean("bells_full", false)
+        return if (full) BellSchedule.FULL_DAY else BellSchedule.SHORT_DAY
     }
 }

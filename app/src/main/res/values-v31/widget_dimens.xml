@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      На Android 12+ лаунчер сам скругляет корневой вид с id android:id/background по своему радиусу.
-      Если фон тоже скруглён (раньше 28dp), а радиус лаунчера меньше, по углам видны тёмные «серпы».
-      Поэтому здесь фон прямоугольный — форму задаёт лаунчер.
+      Android 12+: фон рисуем скруглённым САМИ, радиус берём системный (тот же, что у лаунчера).
+      Раньше здесь стояло 0dp в расчёте на то, что лаунчер сам скруглит вид android:id/background.
+      Это делают не все: Pixel/Tecno (HiOS) скругляют, а Xiaomi (MIUI/HyperOS) — нет, и виджет был квадратным.
+      Если лаунчер скругляет сам, радиусы совпадают и никаких «серпов» по углам не появляется.
     -->
-    <dimen name="widget_bg_radius">0dp</dimen>
+    <dimen name="widget_bg_radius">@android:dimen/system_app_widget_background_radius</dimen>
     <dimen name="widget_inner_radius">16dp</dimen>
     <dimen name="widget_padding">16dp</dimen>
 </resources>

@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import ru.rzk.schedule.widget.BellsWidgetUpdater
 
 enum class ThemeMode { System, Light, Dark }
 
@@ -18,14 +19,16 @@ data class Settings(
 
 /** Настройки в SharedPreferences + поток для Compose. */
 class SettingsStore(context: Context) {
-    private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
     private val _flow = MutableStateFlow(read())
     val flow: StateFlow<Settings> = _flow.asStateFlow()
 
     val current: Settings get() = _flow.value
 
     fun update(transform: (Settings) -> Settings) {
-        val next = transform(_flow.value)
+        val previous = _flow.value
+        val next = transform(previous)
         prefs.edit()
             .putBoolean("notifications", next.notifications)
             .putInt("interval", next.intervalMinutes)
@@ -34,6 +37,8 @@ class SettingsStore(context: Context) {
             .putBoolean("bells_full", next.bellsFull)
             .apply()
         _flow.value = next
+        // Виджет считает звонки по тому же режиму (8/12 уроков) — перерисовываем сразу, а не через минуту.
+        if (next.bellsFull != previous.bellsFull) BellsWidgetUpdater.refreshAll(appContext)
     }
 
     private fun read() = Settings(
