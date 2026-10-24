@@ -2,6 +2,17 @@ package ru.rzk.schedule.ui
 
 import android.content.Context
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.net.Uri
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import ru.rzk.schedule.R
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
@@ -248,9 +259,88 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
             }
+
+            // ---- разработчик ----
+            SettingsCard(title = "Разработчик") {
+                DevLink(
+                    icon = R.drawable.ic_dev_mail,
+                    title = "Почта",
+                    subtitle = DEV_EMAIL,
+                ) {
+                    val sent = runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$DEV_EMAIL"))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }.isSuccess
+                    if (!sent) {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        cm?.setPrimaryClip(ClipData.newPlainText("email", DEV_EMAIL))
+                        scope.launch { snackbar.showSnackbar("Адрес скопирован") }
+                    }
+                }
+                DevLink(
+                    icon = R.drawable.ic_dev_github,
+                    title = "Исходный код на GitHub",
+                    subtitle = "EgorDev404/rzhk_app",
+                ) { openLink(context, DEV_REPO_URL) }
+                DevLink(
+                    icon = R.drawable.ic_dev_telegram,
+                    title = "Telegram",
+                    subtitle = "@alarmus2026",
+                ) { openLink(context, DEV_TELEGRAM_URL) }
+                DevLink(
+                    icon = R.drawable.ic_dev_privacy,
+                    title = "Политика конфиденциальности",
+                    subtitle = "Какие данные использует приложение",
+                ) { openLink(context, DEV_PRIVACY_URL) }
+            }
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+private const val DEV_EMAIL = "khlustovegor123@gmail.com"
+private const val DEV_REPO_URL = "https://github.com/EgorDev404/rzhk_app"
+private const val DEV_TELEGRAM_URL = "https://telegram.dog/alarmus2026"
+private const val DEV_PRIVACY_URL = "https://github.com/EgorDev404/rzhk_app/blob/main/PRIVACY.md"
+
+private fun openLink(context: Context, url: String) {
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+}
+
+/** Строка со ссылкой: иконка в круглом контейнере Material You, заголовок, подпись и стрелка «открыть». */
+@Composable
+private fun DevLink(icon: Int, title: String, subtitle: String, onClick: () -> Unit) {
+    ListItem(
+        leadingContent = {
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painterResource(icon),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        },
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        trailingContent = {
+            Icon(
+                painterResource(R.drawable.ic_dev_open),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        },
+        colors = transparentItem(),
+        modifier = Modifier.clickable(onClick = onClick),
+    )
 }
 
 @Composable
