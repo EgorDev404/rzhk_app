@@ -71,6 +71,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.android.material:material:1.12.0") // только XML-тема для окна
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
