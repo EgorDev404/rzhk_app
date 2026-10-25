@@ -70,6 +70,28 @@ class SiteClient(private val http: OkHttpClient = defaultClient()) {
         }
     }
 
+    /** Картинка (JPEG, PNG или WebP) или null, если не удалось скачать либо по адресу лежит не картинка. */
+    suspend fun fetchImage(url: String, bustCache: Boolean = false): ByteArray? = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(url).apply {
+            if (bustCache) {
+                header("Cache-Control", "no-cache")
+                header("Pragma", "no-cache")
+            }
+        }.build()
+        try {
+            http.newCall(request).await().use { response ->
+                if (response.code != 200) return@use null
+                val body = response.body ?: return@use null
+                val bytes = readLimited(body.byteStream(), MAX_IMAGE_BYTES) ?: return@use null
+                if (looksLikeImage(bytes)) bytes else null
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            null
+        }
+    }
+
     /** Отвечает ли сайт вообще (главная страница). Нужно, чтобы отличить «файла нет» от «сайт лежит». */
     suspend fun siteAlive(): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -83,6 +105,14 @@ class SiteClient(private val http: OkHttpClient = defaultClient()) {
 
     private fun looksLikePdf(bytes: ByteArray): Boolean =
         String(bytes, 0, minOf(bytes.size, 1024), Charsets.ISO_8859_1).contains("%PDF")
+
+    private fun looksLikeImage(b: ByteArray): Boolean {
+        if (b.size < 12) return false
+        val jpeg = b[0] == 0xFF.toByte() && b[1] == 0xD8.toByte() && b[2] == 0xFF.toByte()
+        val png = b[0] == 0x89.toByte() && b[1] == 'P'.code.toByte() && b[2] == 'N'.code.toByte() && b[3] == 'G'.code.toByte()
+        val webp = String(b, 0, 4, Charsets.ISO_8859_1) == "RIFF" && String(b, 8, 4, Charsets.ISO_8859_1) == "WEBP"
+        return jpeg || png || webp
+    }
 
     private fun readLimited(input: InputStream, max: Int = 25 * 1024 * 1024): ByteArray? {
         val out = ByteArrayOutputStream()
@@ -98,6 +128,7 @@ class SiteClient(private val http: OkHttpClient = defaultClient()) {
 
     companion object {
         private val MISSING_CODES = setOf(403, 404, 410)
+        private const val MAX_IMAGE_BYTES = 15 * 1024 * 1024
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(8, TimeUnit.SECONDS)

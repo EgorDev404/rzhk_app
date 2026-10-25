@@ -20,6 +20,15 @@ object Naming {
     const val BASE_URL = "https://rzn-jd62.gosuslugi.ru/netcat_files/userfiles"
     const val MAX_VERSION = 3
 
+    /**
+     * Страница «Расписание занятий» лежит на верхнем уровне сайта, но ссылки на неё нет в меню главной страницы,
+     * поэтому «по ссылкам» её можно и не найти. Адрес формируется по правилу сайта (транслитерация названия).
+     */
+    val GUESSED_SCHEDULE_PAGES: List<String> = listOf(
+        SITE_ROOT + "raspisanie-zanyatiy/",
+        SITE_ROOT + "raspisanie/",
+    )
+
     private val latin: Map<DayOfWeek, List<String>> = mapOf(
         DayOfWeek.MONDAY to listOf("Ponedelnik"),
         DayOfWeek.TUESDAY to listOf("Vtornik"),
@@ -200,4 +209,24 @@ object Naming {
         }
         return pages.toList()
     }
+
+    // ---- расписание картинкой ------------------------------------------------------------------
+
+    private val imgSrcRe = Regex(
+        """<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["']""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+    )
+    private val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".webp")
+
+    /**
+     * Картинки с расписанием на странице. Берём только то, что загрузил редактор сайта
+     * (/netcat_files/userfiles/): логотип, значки и счётчики лежат в других местах.
+     */
+    fun extractImages(pageUrl: String, html: String): List<String> =
+        imgSrcRe.findAll(html).mapNotNull { m ->
+            val src = unescape(m.groupValues[1])
+            val path = src.substringBefore('#').substringBefore('?').lowercase()
+            if (imageExtensions.none { path.endsWith(it) } || "/netcat_files/userfiles/" !in path) return@mapNotNull null
+            resolve(pageUrl, src)?.takeIf { sameHost(it, pageUrl) }
+        }.distinct().toList()
 }

@@ -22,7 +22,17 @@ import javax.net.ssl.SSLException
 enum class LoadStage { Connecting, Searching, Rendering }
 enum class FailureKind { Offline, SiteDown, Certificate, BadFile }
 
-data class Snapshot(val day: LocalDate, val pdf: File, val sha256: String, val checkedAt: Instant)
+/**
+ * Расписание на день. Либо PDF-файл ([pdf]), либо набор картинок со страницы сайта ([images]):
+ * колледж выкладывает его то так, то так.
+ */
+data class Snapshot(
+    val day: LocalDate,
+    val pdf: File?,
+    val sha256: String,
+    val checkedAt: Instant,
+    val images: List<File> = emptyList(),
+)
 
 sealed interface FetchOutcome {
     /** [changed] — содержимое отличается от того, что было; [stale] — сайт недоступен, отдана сохранённая копия. */
@@ -41,23 +51,38 @@ class ScheduleRepository(private val context: Context, private val site: SiteCli
     private val pdfDir = File(context.filesDir, "pdf").apply { mkdirs() }
     private val renderDir = File(context.filesDir, "render").apply { mkdirs() }
     private val locks = ConcurrentHashMap<LocalDate, Mutex>()
+    private val imageSchedule = ImageSchedule(context, site)
 
     @Volatile private var links: List<String> = emptyList()
+    @Volatile private var schedulePages: List<String> = emptyList()
     @Volatile private var linksAt = 0L
 
     // ---- кэш ------------------------------------------------------------------------------------
 
     fun cached(day: LocalDate): Snapshot? {
         val file = pdfFile(day)
-        if (!file.exists() || file.length() == 0L) return null
+        if (!file.exists() || file.length() == 0L) return cachedImages(day)
         val sha = meta.getString("sha_$day", null)
             ?: sha256(file.readBytes()).also { meta.edit().putString("sha_$day", it).apply() }
         val checkedAt = meta.getLong("at_$day", file.lastModified())
         return Snapshot(day, file, sha, Instant.ofEpochMilli(checkedAt))
     }
 
-    suspend fun pages(snapshot: Snapshot): List<File> =
-        PdfPages.render(snapshot.pdf, File(renderDir, snapshot.sha256.take(24)))
+    /** Расписание, сохранённое картинками (см. [ImageSchedule]). */
+    private fun cachedImages(day: LocalDate): Snapshot? {
+        val names = meta.getString("img_$day", null) ?: return null
+        val files = names.split('|').filter { it.isNotEmpty() }.map { File(imageSchedule.dir, it) }
+        if (files.isEmpty() || files.any { !it.exists() }) return null
+        val sha = meta.getString("sha_$day", null) ?: return null
+        return Snapshot(day, null, sha, Instant.ofEpochMilli(meta.getLong("at_$day", 0L)), files)
+    }
+
+    /** Страницы для показа: картинки отдаём как есть, PDF превращаем в картинки. */
+    suspend fun pages(snapshot: Snapshot): List<File> {
+        if (snapshot.images.isNotEmpty()) return snapshot.images
+        val pdf = snapshot.pdf ?: return emptyList()
+        return PdfPages.render(pdf, File(renderDir, snapshot.sha256.take(24)))
+    }
 
     // ---- что пользователь уже видел (для уведомлений) -------------------------------------------
 
@@ -85,10 +110,23 @@ class ScheduleRepository(private val context: Context, private val site: SiteCli
                     val file = pdfFile(day)
                     if (previous != sha || !file.exists()) writeAtomically(file, result.bytes)
                     val now = System.currentTimeMillis()
-                    meta.edit().putString("sha_$day", sha).putLong("at_$day", now).apply {
+                    meta.edit().putString("sha_$day", sha).putLong("at_$day", now).remove("img_$day").apply {
                         result.template?.let { putString("template", it) } // запоминаем, какой шаблон сработал
                     }.apply()
                     FetchOutcome.Ok(Snapshot(day, file, sha, Instant.ofEpochMilli(now)), changed = previous != sha)
+                }
+                is Found.Images -> {
+                    val previous = meta.getString("sha_$day", null)
+                    val now = System.currentTimeMillis()
+                    meta.edit()
+                        .putString("sha_$day", result.sha)
+                        .putLong("at_$day", now)
+                        .putString("img_$day", result.files.joinToString("|") { it.name })
+                        .apply()
+                    FetchOutcome.Ok(
+                        Snapshot(day, null, result.sha, Instant.ofEpochMilli(now), result.files),
+                        changed = previous != result.sha,
+                    )
                 }
                 Found.NotFound ->
                     if (cached != null) FetchOutcome.Ok(cached, changed = false) else FetchOutcome.NotPublished
@@ -102,6 +140,7 @@ class ScheduleRepository(private val context: Context, private val site: SiteCli
 
     private sealed interface Found {
         class Hit(val template: String?, val bytes: ByteArray) : Found
+        class Images(val files: List<File>, val sha: String) : Found
         data object NotFound : Found
         class Unreachable(val cause: Throwable?) : Found
     }
@@ -123,6 +162,9 @@ class ScheduleRepository(private val context: Context, private val site: SiteCli
         if (extra.isNotEmpty()) {
             probeOrdered(extra.map { Item(it, null) }, force).hit?.let { return it }
         }
+
+        // Расписание могли выложить не файлом, а картинками прямо на странице раздела.
+        imageSchedule.forDay(day, force) { schedulePages() }?.let { return Found.Images(it.files, it.sha) }
         return Found.NotFound
     }
 
@@ -151,16 +193,26 @@ class ScheduleRepository(private val context: Context, private val site: SiteCli
         if (linksAt != 0L && now - linksAt < LISTING_TTL_MS) return links
         val html = site.fetchHtml(Naming.SITE_ROOT)
         val found = LinkedHashSet<String>()
+        val pages = LinkedHashSet<String>()
         if (html != null) {
             found += Naming.extractPdfLinks(Naming.SITE_ROOT, html)
-            for (page in Naming.extractSchedulePages(Naming.SITE_ROOT, html)) {
-                site.fetchHtml(page)?.let { found += Naming.extractPdfLinks(page, it) }
-            }
+            pages += Naming.extractSchedulePages(Naming.SITE_ROOT, html)
+        }
+        pages += Naming.GUESSED_SCHEDULE_PAGES // на страницу раздела с главной может не быть ссылки
+        for (page in pages) {
+            site.fetchHtml(page)?.let { found += Naming.extractPdfLinks(page, it) }
         }
         links = found.toList()
+        schedulePages = pages.toList()
         // не получилось открыть главную — повторим через минуту, а не через 5
         linksAt = if (html != null) now else now - LISTING_TTL_MS + 60_000
         return links
+    }
+
+    /** Страницы раздела «Расписание», где могут лежать ссылки на PDF и картинки. */
+    private suspend fun schedulePages(): List<String> {
+        listing()
+        return schedulePages
     }
 
     // ---- служебное ------------------------------------------------------------------------------
@@ -196,6 +248,7 @@ class ScheduleRepository(private val context: Context, private val site: SiteCli
         val cutoff = System.currentTimeMillis() - keepDays * 86_400_000L
         pdfDir.listFiles()?.filter { it.lastModified() < cutoff }?.forEach { it.delete() }
         renderDir.listFiles()?.filter { it.lastModified() < cutoff }?.forEach { it.deleteRecursively() }
+        imageSchedule.cleanup(keepDays)
     }
 
     private companion object {
