@@ -21,7 +21,6 @@ import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -192,23 +191,33 @@ fun HomeScreen(
     }
 
     if (showDatePicker) {
-        val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = days.first().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-            // Календарь не помещается на низком экране: в горизонтали сразу открываем ввод даты.
-            initialDisplayMode = if (compact) DisplayMode.Input else DisplayMode.Picker,
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { millis ->
-                        vm.showDay(Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate())
-                    }
+        if (compact) {
+            // Низкий экран: стандартный календарь не помещается, показываем компактный.
+            CompactDatePickerDialog(
+                initial = days.first(),
+                onDismiss = { showDatePicker = false },
+                onConfirm = { date ->
+                    vm.showDay(date)
                     showDatePicker = false
-                }) { Text("Показать") }
-            },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Отмена") } },
-        ) { DatePicker(state = pickerState) }
+                },
+            )
+        } else {
+            val pickerState = rememberDatePickerState(
+                initialSelectedDateMillis = days.first().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            )
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pickerState.selectedDateMillis?.let { millis ->
+                            vm.showDay(Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate())
+                        }
+                        showDatePicker = false
+                    }) { Text("Показать") }
+                },
+                dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Отмена") } },
+            ) { DatePicker(state = pickerState) }
+        }
     }
 }
 
