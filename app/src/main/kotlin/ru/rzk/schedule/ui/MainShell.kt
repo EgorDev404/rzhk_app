@@ -9,8 +9,19 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Today
@@ -20,6 +31,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -72,49 +85,86 @@ fun MainShell(
     // С «Звонков» кнопка «назад» возвращает на главный экран, а не закрывает приложение.
     BackHandler(enabled = tab != 0) { tab = 0 }
 
+    // Широкий или низкий экран (планшет, телефон в горизонтали): боковая панель вместо нижней.
+    val useRail = useNavigationRail()
+    val barInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar {
-                Tab.entries.forEachIndexed { index, item ->
-                    val selected = tab == index
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = { tab = index },
-                        icon = { Icon(if (selected) item.selectedIcon else item.icon, contentDescription = null) },
-                        label = { Text(item.title) },
-                        alwaysShowLabel = true,
-                    )
+            if (!useRail) {
+                NavigationBar {
+                    Tab.entries.forEachIndexed { index, item ->
+                        val selected = tab == index
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = { tab = index },
+                            icon = { Icon(if (selected) item.selectedIcon else item.icon, contentDescription = null) },
+                            label = { Text(item.title) },
+                            alwaysShowLabel = true,
+                        )
+                    }
                 }
             }
         },
     ) { outer ->
         // Верхний отступ не нужен: у каждого экрана своя шапка, она сама учитывает строку состояния.
-        Box(Modifier.fillMaxSize().padding(bottom = outer.calculateBottomPadding())) {
-            AnimatedContent(
-                targetState = tab,
-                transitionSpec = {
-                    val forward = targetState > initialState
-                    (slideInHorizontally(tween(300)) { if (forward) it / 5 else -it / 5 } + fadeIn(tween(300))) togetherWith
-                        (slideOutHorizontally(tween(300)) { if (forward) -it / 5 else it / 5 } + fadeOut(tween(200)))
-                },
-                label = "tabs",
-            ) { current ->
-                stateHolder.SaveableStateProvider(current) {
-                    if (current == 0) {
-                        HomeScreen(
-                            vm = vm,
-                            notificationsOn = notificationsOn,
-                            onOpenSettings = onOpenSettings,
-                            onEnableNotifications = onEnableNotifications,
-                            onOpenViewer = onOpenViewer,
+        Row(Modifier.fillMaxSize()) {
+            if (useRail) {
+                NavigationRail(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    windowInsets = barInsets.only(WindowInsetsSides.Start + WindowInsetsSides.Vertical),
+                ) {
+                    Spacer(Modifier.weight(1f))
+                    Tab.entries.forEachIndexed { index, item ->
+                        val selected = tab == index
+                        NavigationRailItem(
+                            selected = selected,
+                            onClick = { tab = index },
+                            icon = { Icon(if (selected) item.selectedIcon else item.icon, contentDescription = null) },
+                            label = { Text(item.title) },
+                            alwaysShowLabel = true,
                         )
-                    } else {
-                        BellsScreen(
-                            fullDay = bellsFull,
-                            onFullDayChange = onBellsFullChange,
-                            onOpenSettings = onOpenSettings,
-                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+            Box(
+                Modifier.weight(1f).fillMaxHeight().padding(bottom = outer.calculateBottomPadding())
+                    .then(
+                        if (useRail) {
+                            // Слева отступ уже дала панель, справа — вырез камеры и системные кнопки.
+                            Modifier
+                                .consumeWindowInsets(barInsets.only(WindowInsetsSides.Start))
+                                .windowInsetsPadding(barInsets.only(WindowInsetsSides.End))
+                        } else Modifier,
+                    ),
+            ) {
+                AnimatedContent(
+                    targetState = tab,
+                    transitionSpec = {
+                        val forward = targetState > initialState
+                        (slideInHorizontally(tween(300)) { if (forward) it / 5 else -it / 5 } + fadeIn(tween(300))) togetherWith
+                            (slideOutHorizontally(tween(300)) { if (forward) -it / 5 else it / 5 } + fadeOut(tween(200)))
+                    },
+                    label = "tabs",
+                ) { current ->
+                    stateHolder.SaveableStateProvider(current) {
+                        if (current == 0) {
+                            HomeScreen(
+                                vm = vm,
+                                notificationsOn = notificationsOn,
+                                onOpenSettings = onOpenSettings,
+                                onEnableNotifications = onEnableNotifications,
+                                onOpenViewer = onOpenViewer,
+                            )
+                        } else {
+                            BellsScreen(
+                                fullDay = bellsFull,
+                                onFullDayChange = onBellsFullChange,
+                                onOpenSettings = onOpenSettings,
+                            )
+                        }
                     }
                 }
             }

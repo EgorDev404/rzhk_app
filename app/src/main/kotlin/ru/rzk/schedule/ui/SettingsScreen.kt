@@ -19,6 +19,12 @@ import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -94,10 +100,14 @@ fun SettingsScreen(
         onPauseOrDispose { }
     }
 
+    // Вырез камеры в горизонтальной ориентации не должен перекрывать кнопку «Назад» и карточки.
+    val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = safeInsets,
         topBar = {
             TopAppBar(
+                windowInsets = TopAppBarDefaults.windowInsets.union(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)),
                 title = { Text("Настройки") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -109,193 +119,197 @@ fun SettingsScreen(
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        Column(
-            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            // ---- уведомления ----
-            SettingsCard(title = "Уведомления") {
-                ListItem(
-                    headlineContent = { Text("Сообщать о расписании") },
-                    supportingContent = { Text("Когда оно выложено на сайте или изменилось") },
-                    trailingContent = {
-                        Switch(
-                            checked = settings.notifications,
-                            onCheckedChange = { on ->
-                                if (on) onEnableNotifications() else onChange { it.copy(notifications = false) }
-                            },
-                        )
-                    },
-                    colors = transparentItem(),
-                )
-                Text(
-                    "Как часто проверять сайт",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                val options = listOf(15, 30, 60)
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    options.forEachIndexed { index, minutes ->
-                        SegmentedButton(
-                            selected = settings.intervalMinutes == minutes,
-                            onClick = { onChange { it.copy(intervalMinutes = minutes) } },
-                            shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                            enabled = settings.notifications,
-                        ) { Text(if (minutes == 60) "1 час" else "$minutes мин") }
-                    }
-                }
-                Text(
-                    "Android сам решает, когда запускать проверку, поэтому уведомление может прийти с небольшой задержкой.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                FilledTonalButton(
-                    onClick = {
-                        onCheckNow()
-                        scope.launch { snackbar.showSnackbar("Проверяю сайт…") }
-                    },
-                    enabled = settings.notifications,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                ) { Text("Проверить сейчас") }
-            }
-
-            // ---- если уведомления не приходят ----
-            SettingsCard(title = "Если уведомления не приходят") {
-                Text(
-                    if (batteryUnrestricted) {
-                        "Готово: системе разрешено работать в фоне без ограничений батареи. " +
-                            "Уведомления будут приходить вовремя."
-                    } else {
-                        "На некоторых телефонах (Xiaomi, Huawei, Samsung и др.) система выключает фоновые задачи. " +
-                            "Разрешите приложению работать без ограничений батареи."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-
-                if (batteryUnrestricted) {
-                    // Залитая «успешная» кнопка, недоступная для нажатия.
-                    FilledTonalButton(
-                        onClick = { },
-                        enabled = false,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        ),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    ) {
-                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.size(8.dp))
-                        Text("Ограничения сняты")
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            }
-                        },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    ) { Text("Разрешить работу в фоне") }
-                }
-            }
-
-            // ---- оформление ----
-            SettingsCard(title = "Оформление") {
-                Text(
-                    "Тема",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                val themes = listOf(ThemeMode.System to "Система", ThemeMode.Light to "Светлая", ThemeMode.Dark to "Тёмная")
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    themes.forEachIndexed { index, (mode, label) ->
-                        SegmentedButton(
-                            selected = settings.theme == mode,
-                            onClick = { onChange { it.copy(theme = mode) } },
-                            shape = SegmentedButtonDefaults.itemShape(index, themes.size),
-                        ) { Text(label, maxLines = 1) }
-                    }
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        // Прокрутка — на всю ширину экрана, а сами карточки ограничены и выровнены по центру.
+        Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
+            CenteredColumn(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                maxWidth = 640.dp,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                // ---- уведомления ----
+                SettingsCard(title = "Уведомления") {
                     ListItem(
-                        headlineContent = { Text("Цвета из обоев") },
-                        supportingContent = { Text("Material You: палитра подстраивается под ваши обои") },
+                        headlineContent = { Text("Сообщать о расписании") },
+                        supportingContent = { Text("Когда оно выложено на сайте или изменилось") },
                         trailingContent = {
                             Switch(
-                                checked = settings.dynamicColor,
-                                onCheckedChange = { on -> onChange { it.copy(dynamicColor = on) } },
+                                checked = settings.notifications,
+                                onCheckedChange = { on ->
+                                    if (on) onEnableNotifications() else onChange { it.copy(notifications = false) }
+                                },
                             )
                         },
                         colors = transparentItem(),
                     )
+                    Text(
+                        "Как часто проверять сайт",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    val options = listOf(15, 30, 60)
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        options.forEachIndexed { index, minutes ->
+                            SegmentedButton(
+                                selected = settings.intervalMinutes == minutes,
+                                onClick = { onChange { it.copy(intervalMinutes = minutes) } },
+                                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                                enabled = settings.notifications,
+                            ) { Text(if (minutes == 60) "1 час" else "$minutes мин") }
+                        }
+                    }
+                    Text(
+                        "Android сам решает, когда запускать проверку, поэтому уведомление может прийти с небольшой задержкой.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    FilledTonalButton(
+                        onClick = {
+                            onCheckNow()
+                            scope.launch { snackbar.showSnackbar("Проверяю сайт…") }
+                        },
+                        enabled = settings.notifications,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    ) { Text("Проверить сейчас") }
                 }
-            }
 
-            // ---- о приложении ----
-            SettingsCard(title = "О приложении") {
-                Text(
-                    "Данное приложение скачивает свежие официальные PDF файлы расписания с сервера колледжа ОГБПОУ \"РЖК\" (https://rzn-jd62.gosuslugi.ru)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "ℹ️ При ошибках загрузки, в первую очередь проверьте ваше подключение к сети, состояние VPN, частные DNS-сервера.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                Text(
-                    "Версия $version",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                )
-            }
+                // ---- если уведомления не приходят ----
+                SettingsCard(title = "Если уведомления не приходят") {
+                    Text(
+                        if (batteryUnrestricted) {
+                            "Готово: системе разрешено работать в фоне без ограничений батареи. " +
+                                "Уведомления будут приходить вовремя."
+                        } else {
+                            "На некоторых телефонах (Xiaomi, Huawei, Samsung и др.) система выключает фоновые задачи. " +
+                                "Разрешите приложению работать без ограничений батареи."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
 
-            // ---- разработчик ----
-            SettingsCard(title = "Разработчик") {
-                DevLink(
-                    icon = R.drawable.ic_dev_mail,
-                    title = "Почта",
-                    subtitle = DEV_EMAIL,
-                ) {
-                    val sent = runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$DEV_EMAIL"))
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }.isSuccess
-                    if (!sent) {
-                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                        cm?.setPrimaryClip(ClipData.newPlainText("email", DEV_EMAIL))
-                        scope.launch { snackbar.showSnackbar("Адрес скопирован") }
+                    if (batteryUnrestricted) {
+                        // Залитая «успешная» кнопка, недоступная для нажатия.
+                        FilledTonalButton(
+                            onClick = { },
+                            enabled = false,
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        ) {
+                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(8.dp))
+                            Text("Ограничения сняты")
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    )
+                                }
+                            },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        ) { Text("Разрешить работу в фоне") }
                     }
                 }
-                DevLink(
-                    icon = R.drawable.ic_dev_github,
-                    title = "Исходный код на GitHub",
-                    subtitle = "EgorDev404/rzhk_app",
-                ) { openLink(context, DEV_REPO_URL) }
-                DevLink(
-                    icon = R.drawable.ic_dev_telegram,
-                    title = "Telegram",
-                    subtitle = "@alarmus2026",
-                ) { openLink(context, DEV_TELEGRAM_URL) }
-                DevLink(
-                    icon = R.drawable.ic_dev_privacy,
-                    title = "Политика конфиденциальности",
-                    subtitle = "Какие данные использует приложение",
-                ) { openLink(context, DEV_PRIVACY_URL) }
+
+                // ---- оформление ----
+                SettingsCard(title = "Оформление") {
+                    Text(
+                        "Тема",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    val themes = listOf(ThemeMode.System to "Система", ThemeMode.Light to "Светлая", ThemeMode.Dark to "Тёмная")
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        themes.forEachIndexed { index, (mode, label) ->
+                            SegmentedButton(
+                                selected = settings.theme == mode,
+                                onClick = { onChange { it.copy(theme = mode) } },
+                                shape = SegmentedButtonDefaults.itemShape(index, themes.size),
+                            ) { Text(label, maxLines = 1) }
+                        }
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        ListItem(
+                            headlineContent = { Text("Цвета из обоев") },
+                            supportingContent = { Text("Material You: палитра подстраивается под ваши обои") },
+                            trailingContent = {
+                                Switch(
+                                    checked = settings.dynamicColor,
+                                    onCheckedChange = { on -> onChange { it.copy(dynamicColor = on) } },
+                                )
+                            },
+                            colors = transparentItem(),
+                        )
+                    }
+                }
+
+                // ---- о приложении ----
+                SettingsCard(title = "О приложении") {
+                    Text(
+                        "Данное приложение скачивает свежие официальные PDF файлы расписания с сервера колледжа ОГБПОУ \"РЖК\" (https://rzn-jd62.gosuslugi.ru)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "ℹ️ При ошибках загрузки, в первую очередь проверьте ваше подключение к сети, состояние VPN, частные DNS-сервера.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    Text(
+                        "Версия $version",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                }
+
+                // ---- разработчик ----
+                SettingsCard(title = "Разработчик") {
+                    DevLink(
+                        icon = R.drawable.ic_dev_mail,
+                        title = "Почта",
+                        subtitle = DEV_EMAIL,
+                    ) {
+                        val sent = runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$DEV_EMAIL"))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }.isSuccess
+                        if (!sent) {
+                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                            cm?.setPrimaryClip(ClipData.newPlainText("email", DEV_EMAIL))
+                            scope.launch { snackbar.showSnackbar("Адрес скопирован") }
+                        }
+                    }
+                    DevLink(
+                        icon = R.drawable.ic_dev_github,
+                        title = "Исходный код на GitHub",
+                        subtitle = "EgorDev404/rzhk_app",
+                    ) { openLink(context, DEV_REPO_URL) }
+                    DevLink(
+                        icon = R.drawable.ic_dev_telegram,
+                        title = "Telegram",
+                        subtitle = "@alarmus2026",
+                    ) { openLink(context, DEV_TELEGRAM_URL) }
+                    DevLink(
+                        icon = R.drawable.ic_dev_privacy,
+                        title = "Политика конфиденциальности",
+                        subtitle = "Какие данные использует приложение",
+                    ) { openLink(context, DEV_PRIVACY_URL) }
+                }
+                Spacer(Modifier.height(24.dp))
             }
-            Spacer(Modifier.height(24.dp))
         }
     }
 }

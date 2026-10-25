@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +33,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
@@ -72,7 +75,13 @@ fun HomeScreen(
     val pagerState = rememberPagerState { days.size }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // Низкий экран (телефон в горизонтали): вместо большой шапки — компактная, с переключателем дней внутри.
+    val compact = isCompactHeight()
+    val scrollBehavior = if (compact) {
+        TopAppBarDefaults.pinnedScrollBehavior()
+    } else {
+        TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    }
     var showDatePicker by remember { mutableStateOf(false) }
 
     LifecycleResumeEffect(Unit) {
@@ -110,32 +119,55 @@ fun HomeScreen(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0), // нижний отступ даёт навигационная панель снаружи
         topBar = {
-            LargeTopAppBar(
-                title = { Text("Расписание") },
-                actions = {
-                    IconButton(onClick = { showDatePicker = true }) {
-                        Icon(Icons.Rounded.CalendarMonth, contentDescription = "Выбрать другой день")
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
-                    }
-                },
-                scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                ),
-            )
+            val barActions: @Composable RowScope.() -> Unit = {
+                IconButton(onClick = { showDatePicker = true }) {
+                    Icon(Icons.Rounded.CalendarMonth, contentDescription = "Выбрать другой день")
+                }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
+                }
+            }
+            if (compact) {
+                TopAppBar(
+                    title = {
+                        DayTabs(
+                            days = days,
+                            states = states,
+                            selected = pagerState.targetPage,
+                            onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                            compact = true,
+                        )
+                    },
+                    actions = barActions,
+                    scrollBehavior = scrollBehavior,
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ),
+                )
+            } else {
+                LargeTopAppBar(
+                    title = { Text("Расписание") },
+                    actions = barActions,
+                    scrollBehavior = scrollBehavior,
+                    colors = TopAppBarDefaults.largeTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ),
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            DayTabs(
-                days = days,
-                states = states,
-                selected = pagerState.targetPage,
-                onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
-            )
+            if (!compact) {
+                DayTabs(
+                    days = days,
+                    states = states,
+                    selected = pagerState.targetPage,
+                    onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                )
+            }
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
@@ -162,6 +194,8 @@ fun HomeScreen(
     if (showDatePicker) {
         val pickerState = rememberDatePickerState(
             initialSelectedDateMillis = days.first().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            // Календарь не помещается на низком экране: в горизонтали сразу открываем ввод даты.
+            initialDisplayMode = if (compact) DisplayMode.Input else DisplayMode.Picker,
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -185,11 +219,18 @@ fun HomeScreen(
  * в пятницу и субботу) — просто день недели, потому что «Послезавтра» не помещается.
  */
 @Composable
-private fun DayTabs(days: List<LocalDate>, states: Map<LocalDate, DayState>, selected: Int, onSelect: (Int) -> Unit) {
+private fun DayTabs(
+    days: List<LocalDate>,
+    states: Map<LocalDate, DayState>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    compact: Boolean = false,
+) {
     val today = Dates.today()
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        if (compact) Modifier.fillMaxWidth().padding(end = 4.dp)
+        else Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 6.dp),
     ) {
         days.forEachIndexed { index, day ->
             val isSelected = index == selected
@@ -203,23 +244,48 @@ private fun DayTabs(days: List<LocalDate>, states: Map<LocalDate, DayState>, sel
             )
             Surface(
                 onClick = { onSelect(index) },
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(if (compact) 16.dp else 20.dp),
                 color = container,
                 contentColor = content,
                 modifier = Modifier.weight(1f),
             ) {
-                Column(
-                    Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        tabTitle(day, today),
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text("${Dates.weekdayShort(day)}, ${Dates.dayMonth(day)}", style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                    TabStatus(states[day]?.content)
+                if (compact) {
+                    // Компактный вариант для низкого экрана: заголовок и дата в две строки, статус — значком справа.
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    ) {
+                        Column(Modifier.weight(1f, fill = false)) {
+                            Text(
+                                tabTitle(day, today),
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                "${Dates.weekdayShort(day)}, ${Dates.dayMonth(day)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        TabStatus(states[day]?.content, compact = true)
+                    }
+                } else {
+                    Column(
+                        Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            tabTitle(day, today),
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text("${Dates.weekdayShort(day)}, ${Dates.dayMonth(day)}", style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        TabStatus(states[day]?.content)
+                    }
                 }
             }
         }
@@ -234,12 +300,16 @@ private fun tabTitle(day: LocalDate, today: LocalDate): String = when (day.toEpo
 }
 
 @Composable
-private fun TabStatus(content: DayContent?) {
+private fun TabStatus(content: DayContent?, compact: Boolean = false) {
     val (icon, text) = when (content) {
         is DayContent.Ready -> Icons.Rounded.CheckCircle to "есть"
         DayContent.NotPublished -> Icons.Rounded.EventBusy to "нет"
         is DayContent.Failed -> Icons.Rounded.CloudOff to "ошибка"
         else -> null to "…"
+    }
+    if (compact) {
+        if (icon != null) Icon(icon, contentDescription = text, modifier = Modifier.size(16.dp))
+        return
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(12.dp))

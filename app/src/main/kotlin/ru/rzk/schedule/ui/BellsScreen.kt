@@ -24,8 +24,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -62,6 +64,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -125,7 +128,14 @@ fun BellsScreen(
     val now by rememberNow()
     val count = if (fullDay) BellSchedule.FULL_DAY else BellSchedule.SHORT_DAY
     val state = BellSchedule.state(now, count)
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // Низкий экран (горизонталь): компактная шапка; широкий альбомный — две колонки рядом.
+    val compact = isCompactHeight()
+    val twoPane = useTwoPane()
+    val scrollBehavior = if (compact) {
+        TopAppBarDefaults.pinnedScrollBehavior()
+    } else {
+        TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    }
 
     // Предложение добавить виджет — только один раз за всю жизнь приложения.
     val context = LocalContext.current
@@ -153,30 +163,67 @@ fun BellsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            LargeTopAppBar(
-                title = { Text("Звонки") },
-                actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
-                    }
-                },
-                scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                ),
-            )
+            val barActions: @Composable RowScope.() -> Unit = {
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
+                }
+            }
+            if (compact) {
+                TopAppBar(
+                    title = { Text("Звонки") },
+                    actions = barActions,
+                    scrollBehavior = scrollBehavior,
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ),
+                )
+            } else {
+                LargeTopAppBar(
+                    title = { Text("Звонки") },
+                    actions = barActions,
+                    scrollBehavior = scrollBehavior,
+                    colors = TopAppBarDefaults.largeTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ),
+                )
+            }
         },
     ) { padding ->
-        Column(
-            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            NowCard(state = state, canExpand = !fullDay, onShowFullDay = { onFullDayChange(true) })
-            DayLengthSwitch(fullDay = fullDay, onChange = onFullDayChange)
-            BellTable(visibleCount = count, state = state)
-            Footnote()
-            Spacer(Modifier.height(8.dp))
+        if (twoPane) {
+            // Слева — «Сейчас», справа — таблица. Каждая колонка прокручивается сама.
+            Row(
+                Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    NowCard(state = state, canExpand = !fullDay, onShowFullDay = { onFullDayChange(true) })
+                    Spacer(Modifier.height(8.dp))
+                }
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    DayLengthSwitch(fullDay = fullDay, onChange = onFullDayChange)
+                    BellTable(visibleCount = count, state = state)
+                    Footnote()
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+        } else {
+            Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                CenteredColumn(maxWidth = 640.dp, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    NowCard(state = state, canExpand = !fullDay, onShowFullDay = { onFullDayChange(true) })
+                    DayLengthSwitch(fullDay = fullDay, onChange = onFullDayChange)
+                    BellTable(visibleCount = count, state = state)
+                    Footnote()
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
         }
     }
 }
@@ -334,64 +381,104 @@ private fun HeroLayout(
     footer: String,
     action: (@Composable () -> Unit)? = null,
 ) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Surface(shape = RoundedCornerShape(50), color = LocalContentColor.current.copy(alpha = 0.12f)) {
+    if (isCompactHeight()) {
+        // Низкий экран: кольцо слева, чип и время справа — карточка получается вдвое ниже.
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Row(
-                Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text(chip, style = MaterialTheme.typography.labelLarge)
+                ProgressRing(progress = ringProgress, center = ringCenter)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HeroChip(icon, chip)
+                    HeroBig(big, bigLabel, compact = true, align = Alignment.Start, textAlign = TextAlign.Start)
+                }
             }
+            HeroStats(stats)
+            HeroFooter(footer)
+            action?.invoke()
         }
-
-        ProgressRing(progress = ringProgress, center = ringCenter)
-
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                big,
-                style = MaterialTheme.typography.displayMedium.merge(numeric).copy(fontWeight = FontWeight.Bold),
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                bigLabel,
-                style = MaterialTheme.typography.bodyLarge,
-                color = LocalContentColor.current.copy(alpha = 0.8f),
-                textAlign = TextAlign.Center,
-            )
+    } else {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            HeroChip(icon, chip)
+            ProgressRing(progress = ringProgress, center = ringCenter)
+            HeroBig(big, bigLabel, compact = false, align = Alignment.CenterHorizontally, textAlign = TextAlign.Center)
+            HeroStats(stats)
+            HeroFooter(footer)
+            action?.invoke()
         }
+    }
+}
 
-        if (stats.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                stats.forEach { (label, value) ->
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = LocalContentColor.current.copy(alpha = 0.10f),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                            Text(label, style = MaterialTheme.typography.labelMedium,
-                                color = LocalContentColor.current.copy(alpha = 0.75f))
-                            Text(value, style = MaterialTheme.typography.titleLarge.merge(numeric))
-                        }
-                    }
+@Composable
+private fun HeroChip(icon: ImageVector, chip: String) {
+    Surface(shape = RoundedCornerShape(50), color = LocalContentColor.current.copy(alpha = 0.12f)) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(chip, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
+private fun HeroBig(big: String, label: String, compact: Boolean, align: Alignment.Horizontal, textAlign: TextAlign) {
+    Column(horizontalAlignment = align, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            big,
+            style = (if (compact) MaterialTheme.typography.displaySmall else MaterialTheme.typography.displayMedium)
+                .merge(numeric).copy(fontWeight = FontWeight.Bold),
+            textAlign = textAlign,
+        )
+        Text(
+            label,
+            style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+            color = LocalContentColor.current.copy(alpha = 0.8f),
+            textAlign = textAlign,
+        )
+    }
+}
+
+@Composable
+private fun HeroStats(stats: List<Pair<String, String>>) {
+    if (stats.isEmpty()) return
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        stats.forEach { (label, value) ->
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = LocalContentColor.current.copy(alpha = 0.10f),
+                modifier = Modifier.weight(1f),
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text(label, style = MaterialTheme.typography.labelMedium,
+                        color = LocalContentColor.current.copy(alpha = 0.75f))
+                    Text(value, style = MaterialTheme.typography.titleLarge.merge(numeric))
                 }
             }
         }
-
-        Text(
-            footer,
-            style = MaterialTheme.typography.bodyMedium,
-            color = LocalContentColor.current.copy(alpha = 0.85f),
-            textAlign = TextAlign.Center,
-        )
-        action?.invoke()
     }
+}
+
+@Composable
+private fun HeroFooter(footer: String) {
+    Text(
+        footer,
+        style = MaterialTheme.typography.bodyMedium,
+        color = LocalContentColor.current.copy(alpha = 0.85f),
+        textAlign = TextAlign.Center,
+    )
 }
 
 @Composable
@@ -403,13 +490,14 @@ private fun ProgressRing(progress: Float, center: @Composable (Float) -> Unit) {
         animationSpec = tween(900, easing = FastOutSlowInEasing),
         label = "ring",
     )
-    Box(Modifier.size(176.dp), contentAlignment = Alignment.Center) {
+    val compact = isCompactHeight()
+    Box(Modifier.size(if (compact) 112.dp else 176.dp), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(
             progress = { animated },
             modifier = Modifier.fillMaxSize(),
             color = LocalContentColor.current,
             trackColor = LocalContentColor.current.copy(alpha = 0.14f),
-            strokeWidth = 14.dp,
+            strokeWidth = if (compact) 10.dp else 14.dp,
             strokeCap = StrokeCap.Round,
         )
         center(animated)
@@ -421,7 +509,8 @@ private fun PercentCenter(progress: Float, caption: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             "${(progress * 100).roundToInt()}%",
-            style = MaterialTheme.typography.displaySmall.merge(numeric).copy(fontWeight = FontWeight.Bold),
+            style = (if (isCompactHeight()) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displaySmall)
+                .merge(numeric).copy(fontWeight = FontWeight.Bold),
         )
         Text(caption, style = MaterialTheme.typography.labelMedium, color = LocalContentColor.current.copy(alpha = 0.75f))
     }
@@ -429,7 +518,7 @@ private fun PercentCenter(progress: Float, caption: String) {
 
 @Composable
 private fun IconCenter(icon: ImageVector) {
-    Icon(icon, contentDescription = null, modifier = Modifier.size(64.dp))
+    Icon(icon, contentDescription = null, modifier = Modifier.size(if (isCompactHeight()) 40.dp else 64.dp))
 }
 
 // ================================================================== переключатель 8 / 12 ====

@@ -85,17 +85,20 @@ fun DayPage(
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            AnimatedContent(
-                targetState = state.content,
-                contentKey = { it::class },
-                transitionSpec = { fadeIn(tween(320)) togetherWith fadeOut(tween(160)) },
-                label = "dayContent",
-            ) { content ->
-                when (content) {
-                    is DayContent.Loading -> LoadingPlaceholder(content.stage)
-                    is DayContent.Ready -> ReadyContent(day, content, onOpenPage)
-                    DayContent.NotPublished -> NotPublishedState(day, notificationsOn, onRefresh, onEnableNotifications)
-                    is DayContent.Failed -> FailedState(content.kind, onRefresh)
+            // На широких экранах (планшет, горизонталь) ограничиваем ширину карточек и центрируем их.
+            CenteredColumn {
+                AnimatedContent(
+                    targetState = state.content,
+                    contentKey = { it::class },
+                    transitionSpec = { fadeIn(tween(320)) togetherWith fadeOut(tween(160)) },
+                    label = "dayContent",
+                ) { content ->
+                    when (content) {
+                        is DayContent.Loading -> LoadingPlaceholder(content.stage)
+                        is DayContent.Ready -> ReadyContent(day, content, onOpenPage)
+                        DayContent.NotPublished -> NotPublishedState(day, notificationsOn, onRefresh, onEnableNotifications)
+                        is DayContent.Failed -> FailedState(content.kind, onRefresh)
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))

@@ -240,31 +240,55 @@ fun StatusState(
     LaunchedEffect(Unit) {
         scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
     }
-    Column(
-        modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    val compact = isCompactHeight()
+    val badge: @Composable () -> Unit = {
         Surface(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(104.dp).graphicsLayer { scaleX = scale.value; scaleY = scale.value },
+            modifier = Modifier.size(if (compact) 80.dp else 104.dp).graphicsLayer { scaleX = scale.value; scaleY = scale.value },
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(48.dp),
+                Icon(icon, contentDescription = null, modifier = Modifier.size(if (compact) 36.dp else 48.dp),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
-        Spacer(Modifier.height(4.dp))
-        Text(title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-        Text(
-            message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(4.dp))
-        actions()
+    }
+    if (compact) {
+        // Низкий экран: значок слева, текст и кнопки справа — всё помещается без прокрутки.
+        Row(
+            modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            badge()
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                actions()
+            }
+        }
+    } else {
+        Column(
+            modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            badge()
+            Spacer(Modifier.height(4.dp))
+            Text(title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(4.dp))
+            actions()
+        }
     }
 }
 
