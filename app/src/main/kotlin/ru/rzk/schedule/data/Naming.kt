@@ -25,6 +25,7 @@ object Naming {
      * поэтому «по ссылкам» её можно и не найти. Адрес формируется по правилу сайта (транслитерация названия).
      */
     val GUESSED_SCHEDULE_PAGES: List<String> = listOf(
+        SITE_ROOT + "grafik-zanyatiy/", // так страница называется на самом деле (заголовок — «Расписание занятий»)
         SITE_ROOT + "raspisanie-zanyatiy/",
         SITE_ROOT + "raspisanie/",
     )
@@ -202,7 +203,7 @@ object Naming {
         for (m in anchorRe.findAll(html)) {
             val href = unescape(m.groupValues[1])
             val blob = (href + " " + tagRe.replace(m.groupValues[2], " ")).lowercase()
-            if (!(blob.contains("распис") || blob.contains("raspis"))) continue
+            if (listOf("распис", "raspis", "график занят", "grafik-zanyat").none { blob.contains(it) }) continue
             if (href.substringBefore('?').lowercase().endsWith(".pdf")) continue
             resolve(rootUrl, href)?.takeIf { sameHost(it, rootUrl) }?.let { pages += it }
             if (pages.size >= limit) break
