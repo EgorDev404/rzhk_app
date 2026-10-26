@@ -13,6 +13,12 @@ import java.util.concurrent.TimeUnit
 
 object WorkScheduler {
     private const val NAME = "check_schedules"
+
+    /**
+     * Основной способ узнать о новом расписании — push с сервера. Фоновая проверка раз в час —
+     * запасной вариант на случай, если push по какой-то причине не дошёл.
+     */
+    private const val FALLBACK_MINUTES = 60L
     private val online = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
     /** Включает или выключает периодическую проверку согласно настройкам. */
@@ -23,7 +29,7 @@ object WorkScheduler {
             manager.cancelUniqueWork(NAME)
             return
         }
-        val request = PeriodicWorkRequestBuilder<CheckWorker>(settings.intervalMinutes.toLong(), TimeUnit.MINUTES)
+        val request = PeriodicWorkRequestBuilder<CheckWorker>(FALLBACK_MINUTES, TimeUnit.MINUTES)
             .setConstraints(online)
             .setBackoffCriteria(BackoffPolicy.LINEAR, 5, TimeUnit.MINUTES)
             .build()

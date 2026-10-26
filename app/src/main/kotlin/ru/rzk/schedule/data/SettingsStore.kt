@@ -10,7 +10,6 @@ enum class ThemeMode { System, Light, Dark }
 
 data class Settings(
     val notifications: Boolean = true,
-    val intervalMinutes: Int = 15,
     val dynamicColor: Boolean = true,
     val theme: ThemeMode = ThemeMode.System,
     /** false — таблица звонков из 8 уроков (по умолчанию), true — все 12. */
@@ -31,7 +30,6 @@ class SettingsStore(context: Context) {
         val next = transform(previous)
         prefs.edit()
             .putBoolean("notifications", next.notifications)
-            .putInt("interval", next.intervalMinutes)
             .putBoolean("dynamic", next.dynamicColor)
             .putString("theme", next.theme.name)
             .putBoolean("bells_full", next.bellsFull)
@@ -41,9 +39,15 @@ class SettingsStore(context: Context) {
         if (next.bellsFull != previous.bellsFull) BellsWidgetUpdater.refreshAll(appContext)
     }
 
+    /** Приветственная плашка уже показывалась? */
+    fun introShown(): Boolean = prefs.getBoolean("intro_shown", false)
+
+    fun markIntroShown() {
+        prefs.edit().putBoolean("intro_shown", true).apply()
+    }
+
     private fun read() = Settings(
         notifications = prefs.getBoolean("notifications", true),
-        intervalMinutes = prefs.getInt("interval", 15),
         dynamicColor = prefs.getBoolean("dynamic", true),
         theme = runCatching { ThemeMode.valueOf(prefs.getString("theme", null) ?: "System") }
             .getOrDefault(ThemeMode.System),

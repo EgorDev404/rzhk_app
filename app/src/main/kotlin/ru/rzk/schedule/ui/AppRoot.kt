@@ -48,8 +48,15 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     var viewerVisible by remember { mutableStateOf(false) }
 
     // Расписание фоновых проверок следует за настройками.
-    LaunchedEffect(settings.notifications, settings.intervalMinutes) {
+    LaunchedEffect(settings.notifications) {
         WorkScheduler.apply(context, settings)
+    }
+
+    // Приветственная плашка: показываем один раз. Считаем её показанной сразу, как только она появилась,
+    // поэтому после перезапуска приложения она не вернётся, даже если её закрыли свайпом или не нажали «Понятно».
+    var showIntro by remember { mutableStateOf(!store.introShown()) }
+    LaunchedEffect(Unit) {
+        if (showIntro) store.markIntroShown()
     }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -83,7 +90,6 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                         settings = settings,
                         onChange = { transform -> store.update(transform) },
                         onEnableNotifications = enableNotifications,
-                        onCheckNow = { WorkScheduler.checkNow(context) },
                         onBack = { showSettings = false },
                     )
                 } else {
@@ -115,6 +121,12 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                     ViewerScreen(request = request, onClose = { viewerVisible = false })
                 }
             }
+        }
+    }
+
+    if (showIntro) {
+        ScheduleTheme(settings, darkBars = false) {
+            IntroSheet(onDismiss = { showIntro = false })
         }
     }
 

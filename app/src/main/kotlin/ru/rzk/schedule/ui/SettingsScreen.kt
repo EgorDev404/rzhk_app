@@ -64,6 +64,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.launch
@@ -82,7 +83,6 @@ fun SettingsScreen(
     settings: Settings,
     onChange: ((Settings) -> Settings) -> Unit,
     onEnableNotifications: () -> Unit,
-    onCheckNow: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -141,37 +141,6 @@ fun SettingsScreen(
                         },
                         colors = transparentItem(),
                     )
-                    Text(
-                        "Как часто проверять сайт",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    val options = listOf(15, 30, 60)
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        options.forEachIndexed { index, minutes ->
-                            SegmentedButton(
-                                selected = settings.intervalMinutes == minutes,
-                                onClick = { onChange { it.copy(intervalMinutes = minutes) } },
-                                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                                enabled = settings.notifications,
-                            ) { Text(if (minutes == 60) "1 час" else "$minutes мин") }
-                        }
-                    }
-                    Text(
-                        "Android сам решает, когда запускать проверку, поэтому уведомление может прийти с небольшой задержкой.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    FilledTonalButton(
-                        onClick = {
-                            onCheckNow()
-                            scope.launch { snackbar.showSnackbar("Проверяю сайт…") }
-                        },
-                        enabled = settings.notifications,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    ) { Text("Проверить сейчас") }
                 }
 
                 // ---- если уведомления не приходят ----
@@ -308,18 +277,27 @@ fun SettingsScreen(
                         subtitle = "Какие данные использует приложение",
                     ) { openLink(context, DEV_PRIVACY_URL) }
                 }
+
+                Text(
+                    "Приложение неофициальное: его создал энтузиаст, а не колледж. " +
+                        "Идеальная работа приложения не гарантируется.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                )
                 Spacer(Modifier.height(24.dp))
             }
         }
     }
 }
 
-private const val DEV_EMAIL = "khlustovegor123@gmail.com"
-private const val DEV_REPO_URL = "https://github.com/EgorDev404/rzhk_app"
+internal const val DEV_EMAIL = "khlustovegor123@gmail.com"
+internal const val DEV_REPO_URL = "https://github.com/EgorDev404/rzhk_app"
 private const val DEV_TELEGRAM_URL = "https://telegram.dog/alarmus2026"
-private const val DEV_PRIVACY_URL = "https://github.com/EgorDev404/rzhk_app/blob/main/PRIVACY.md"
+internal const val DEV_PRIVACY_URL = "https://github.com/EgorDev404/rzhk_app/blob/main/PRIVACY.md"
 
-private fun openLink(context: Context, url: String) {
+internal fun openLink(context: Context, url: String) {
     runCatching {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
@@ -327,7 +305,7 @@ private fun openLink(context: Context, url: String) {
 
 /** Строка со ссылкой: иконка в круглом контейнере Material You, заголовок, подпись и стрелка «открыть». */
 @Composable
-private fun DevLink(icon: Int, title: String, subtitle: String, onClick: () -> Unit) {
+internal fun DevLink(icon: Int, title: String, subtitle: String, onClick: () -> Unit) {
     ListItem(
         leadingContent = {
             Box(
