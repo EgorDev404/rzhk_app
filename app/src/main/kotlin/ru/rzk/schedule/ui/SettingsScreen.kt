@@ -57,6 +57,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import ru.rzk.schedule.data.Reports
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,6 +96,8 @@ fun SettingsScreen(
     val version = remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "—"
     }
+    var versionTaps by remember { mutableStateOf(0) }
+    var lastVersionTap by remember { mutableStateOf(0L) }
 
     // Состояние «работа без ограничений батареи разрешена».
     // Перечитывается при каждом возвращении экрана в активное состояние.
@@ -141,6 +148,7 @@ fun SettingsScreen(
                         },
                         colors = transparentItem(),
                     )
+                    SystemStatusRow { message -> scope.launch { snackbar.showSnackbar(message) } }
                 }
 
                 // ---- если уведомления не приходят ----
@@ -238,7 +246,24 @@ fun SettingsScreen(
                         "Версия $version",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                // Скрытый режим разработчика: 7 быстрых нажатий подряд, как в настройках Android.
+                                val now = System.currentTimeMillis()
+                                versionTaps = if (now - lastVersionTap < 2_000) versionTaps + 1 else 1
+                                lastVersionTap = now
+                                if (versionTaps >= 7) {
+                                    versionTaps = 0
+                                    if (settings.devMode) {
+                                        scope.launch { snackbar.showSnackbar("Режим разработчика уже включён") }
+                                    } else {
+                                        onChange { it.copy(devMode = true) }
+                                        scope.launch { snackbar.showSnackbar("Режим разработчика включён") }
+                                    }
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                     )
                 }
 
@@ -276,6 +301,10 @@ fun SettingsScreen(
                         title = "Политика конфиденциальности",
                         subtitle = "Какие данные использует приложение",
                     ) { openLink(context, DEV_PRIVACY_URL) }
+                }
+
+                if (settings.devMode) {
+                    DeveloperCard(onDisable = { onChange { it.copy(devMode = false) } })
                 }
 
                 Text(
@@ -352,6 +381,30 @@ private fun SettingsCard(title: String, content: @Composable () -> Unit) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             content()
+        }
+    }
+}
+
+/** Карточка режима разработчика: показывает, сколько жалоб на красную лампочку пришло сегодня. */
+@Composable
+private fun DeveloperCard(onDisable: () -> Unit) {
+    var count by remember { mutableStateOf<Int?>(null) }
+    var refresh by remember { mutableStateOf(0) }
+    LaunchedEffect(refresh) { count = Reports.countToday() }
+    SettingsCard("Режим разработчика") {
+        ListItem(
+            headlineContent = { Text("Жалоб сегодня: ${count?.toString() ?: "…"}") },
+            supportingContent = {
+                Text(
+                    "Если пользователь нажмёт «Сообщить разработчику», на этот телефон придёт уведомление. " +
+                        "Проверка идёт в фоне примерно раз в 15 минут, уведомления приложения должны быть разрешены.",
+                )
+            },
+            colors = transparentItem(),
+        )
+        Row(Modifier.padding(horizontal = 8.dp)) {
+            TextButton(onClick = { refresh++ }) { Text("Обновить") }
+            TextButton(onClick = onDisable) { Text("Выключить режим") }
         }
     }
 }

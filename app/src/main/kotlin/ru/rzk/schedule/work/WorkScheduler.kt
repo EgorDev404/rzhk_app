@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit
 
 object WorkScheduler {
     private const val NAME = "check_schedules"
+    private const val REPORTS_NAME = "dev_reports"
 
     /**
      * Основной способ узнать о новом расписании — push с сервера. Фоновая проверка раз в час —
@@ -25,6 +26,17 @@ object WorkScheduler {
     fun apply(context: Context, settings: Settings) {
         Push.sync(context, settings.notifications) // подписка на push следует за тем же переключателем
         val manager = WorkManager.getInstance(context)
+
+        // Режим разработчика: раз в ~15 минут (минимум для WorkManager) смотрим, не пожаловались ли пользователи.
+        if (settings.devMode) {
+            val reports = PeriodicWorkRequestBuilder<ReportsWorker>(15, TimeUnit.MINUTES)
+                .setConstraints(online)
+                .setBackoffCriteria(BackoffPolicy.LINEAR, 5, TimeUnit.MINUTES)
+                .build()
+            manager.enqueueUniquePeriodicWork(REPORTS_NAME, ExistingPeriodicWorkPolicy.UPDATE, reports)
+        } else {
+            manager.cancelUniqueWork(REPORTS_NAME)
+        }
         if (!settings.notifications) {
             manager.cancelUniqueWork(NAME)
             return

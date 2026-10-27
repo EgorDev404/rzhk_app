@@ -18,6 +18,7 @@ object Notifier {
     const val CHANNEL = "schedule_v3"
     private const val OLD_CHANNEL = "schedule_v2"
     const val EXTRA_DAY = "day"
+    private const val REPORT_CHANNEL = "dev_reports"
 
     fun createChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -33,6 +34,38 @@ object Notifier {
             setShowBadge(true)
         }
         manager.createNotificationChannel(channel)
+        manager.createNotificationChannel(
+            NotificationChannel(REPORT_CHANNEL, "Жалобы пользователей", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Только для режима разработчика: сообщения, что система оповещения не работает"
+            },
+        )
+    }
+
+    /** Уведомление разработчику: [count] жалоб за сегодня. */
+    @SuppressLint("MissingPermission")
+    fun notifyReports(context: Context, count: Int) {
+        val manager = NotificationManagerCompat.from(context)
+        if (!manager.areNotificationsEnabled()) return
+        val pending = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(context, REPORT_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Жалоба: система оповещения не работает")
+            .setContentText("Пользователи сообщили об этом сегодня: $count. Проверьте сервер.")
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .build()
+        try {
+            manager.notify("dev_reports", 1, notification)
+        } catch (_: SecurityException) {
+            // разрешение отозвали между проверкой и показом
+        }
     }
 
     /**

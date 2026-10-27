@@ -48,7 +48,7 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     var viewerVisible by remember { mutableStateOf(false) }
 
     // Расписание фоновых проверок следует за настройками.
-    LaunchedEffect(settings.notifications) {
+    LaunchedEffect(settings.notifications, settings.devMode) {
         WorkScheduler.apply(context, settings)
     }
 
