@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,7 +70,10 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
         else store.update { it.copy(notifications = true) }
     }
 
+    val pinch = rememberPinchZoomState()
+
     ScheduleTheme(settings, darkBars = viewerVisible) {
+        CompositionLocalProvider(LocalPinchZoom provides pinch) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             AnimatedContent(
                 targetState = showSettings,
@@ -121,6 +125,10 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                     ViewerScreen(request = request, onClose = { viewerVisible = false })
                 }
             }
+
+            // Фото, «отслоённое» щипком двух пальцев, летает поверх всего интерфейса.
+            PinchZoomOverlay(pinch)
+        }
         }
     }
 

@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
@@ -201,6 +202,11 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
     val imageAlpha by animateFloatAsState(if (image != null) 1f else 0f, tween(450), label = "imageAlpha")
     val ratio = image?.let { it.width.toFloat() / it.height } ?: PAGE_RATIO
 
+    // Щипок двумя пальцами «отрывает» картинку от карточки (см. PinchZoom.kt); пока она летает, в карточке её не видно.
+    val pinch = LocalPinchZoom.current
+    val detached = pinch != null && pinch.owner == file
+    val cornerPx = with(LocalDensity.current) { 24.dp.toPx() }
+
     // Нажимная подсветка отключена: карточка занимает почти весь экран, и при начале свайпа по ней
     // на долю секунды вспыхивал серый слой. Нажатие по-прежнему открывает просмотр на весь экран.
     ElevatedCard(
@@ -211,7 +217,19 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
             onClick = onClick,
         ),
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(ratio).animateContentSize()) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(ratio).animateContentSize().then(
+                if (pinch != null) {
+                    Modifier.pinchPeek(
+                        state = pinch,
+                        owner = file,
+                        cornerRadiusPx = cornerPx,
+                        bitmap = { image },
+                        loadSharp = { PageImageCache.load(file, PageImageCache.SAMPLE_BIG) },
+                    )
+                } else Modifier,
+            ),
+        ) {
             if (image == null) {
                 Box(Modifier.fillMaxSize().shimmer())
             } else {
@@ -219,7 +237,7 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
                     bitmap = image!!,
                     contentDescription = label,
                     contentScale = ContentScale.FillWidth,
-                    modifier = Modifier.fillMaxSize().alpha(imageAlpha),
+                    modifier = Modifier.fillMaxSize().alpha(if (detached) 0f else imageAlpha),
                 )
             }
         }
