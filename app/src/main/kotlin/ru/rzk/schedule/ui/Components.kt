@@ -2,6 +2,7 @@ package ru.rzk.schedule.ui
 
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -203,7 +205,9 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
     val ratio = image?.let { it.width.toFloat() / it.height } ?: PAGE_RATIO
 
     // Щипок двумя пальцами «отрывает» картинку от карточки (см. PinchZoom.kt); пока она летает, в карточке её не видно.
-    val pinch = LocalPinchZoom.current
+    // В горизонтальной ориентации картинку увеличивать щипком нельзя: там можно открыть её на весь экран нажатием.
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val pinch = if (landscape) null else LocalPinchZoom.current
     val detached = pinch != null && pinch.owner == file
     val cornerPx = with(LocalDensity.current) { 24.dp.toPx() }
 
