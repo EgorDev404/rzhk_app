@@ -17,9 +17,15 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,7 +78,18 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
 
     val pinch = rememberPinchZoomState()
 
-    ScheduleTheme(settings, darkBars = viewerVisible) {
+    // Когда белое фото расписания, оторванное щипком, заезжает под строку состояния или нижнюю панель,
+    // значки в них должны стать тёмными, иначе их не видно.
+    val density = LocalDensity.current
+    val rootView = LocalView.current
+    val topInset = WindowInsets.statusBars.getTop(density).toFloat()
+    val bottomInset = WindowInsets.navigationBars.getBottom(density).toFloat()
+    val overTop by remember(topInset) { derivedStateOf { pinch.coversTop(topInset) } }
+    val overBottom by remember(bottomInset) {
+        derivedStateOf { pinch.coversBottom(bottomInset, rootView.height.toFloat()) }
+    }
+
+    ScheduleTheme(settings, darkBars = viewerVisible, statusBarOverLight = overTop, navBarOverLight = overBottom) {
         CompositionLocalProvider(LocalPinchZoom provides pinch) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             AnimatedContent(

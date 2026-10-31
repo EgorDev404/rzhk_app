@@ -1,5 +1,6 @@
 package ru.rzk.schedule.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,15 +34,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -73,9 +77,21 @@ class PinchZoomState(private val scope: CoroutineScope) {
     var offset: Offset by mutableStateOf(Offset.Zero)
         private set
 
+    /** Пальцы сейчас на картинке (а не идёт возврат). */
+    var holding: Boolean by mutableStateOf(false)
+        private set
+
     private var releasing: Job? = null
 
     val visible: Boolean get() = owner != null
+
+    /** Заходит ли картинка под строку состояния (верхнюю системную панель высотой [topInset] пикселей). */
+    fun coversTop(topInset: Float): Boolean =
+        visible && bounds.center.y + offset.y - bounds.height * scale / 2f <= topInset
+
+    /** Заходит ли картинка под системную панель внизу высотой [bottomInset] пикселей. */
+    fun coversBottom(bottomInset: Float, screenHeight: Float): Boolean =
+        visible && bounds.center.y + offset.y + bounds.height * scale / 2f >= screenHeight - bottomInset
 
     /** Насколько затемнён фон: чем больше увеличение, тем темнее. */
     val dim: Float get() = ((scale - 1f) / 1.5f).coerceIn(0f, 1f) * 0.7f
@@ -93,6 +109,7 @@ class PinchZoomState(private val scope: CoroutineScope) {
         this.owner = owner
         this.bounds = bounds
         this.cornerRadius = cornerRadius
+        holding = true
     }
 
     /** Подменяет картинку на более чёткую, когда она загрузилась. */
@@ -116,6 +133,7 @@ class PinchZoomState(private val scope: CoroutineScope) {
     /** Плавно возвращает картинку на место и убирает её из оверлея. */
     fun release() {
         if (owner == null) return
+        holding = false
         releasing?.cancel()
         val startScale = scale
         val startOffset = offset
@@ -150,7 +168,24 @@ fun PinchZoomOverlay(state: PinchZoomState) {
     val bitmap = state.bitmap ?: return
     if (!state.visible) return
     val density = LocalDensity.current
-    Box(Modifier.fillMaxSize()) {
+
+    // Назад, пока картинка в воздухе, просто возвращает её на место.
+    BackHandler(enabled = true) { state.release() }
+
+    Box(
+        Modifier.fillMaxSize().pointerInput(state) {
+            // Пока картинка оторвана, остальной интерфейс недоступен: новые касания (например, третьим пальцем)
+            // поглощаются здесь и до кнопок не доходят. Два пальца, которые держат картинку, этот слой не затрагивает.
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    // Страховка: если картинка вдруг «зависла» без пальцев на ней, любое касание вернёт её на место.
+                    if (!state.holding && event.changes.any { it.pressed && !it.previousPressed }) state.release()
+                    event.changes.forEach { it.consume() }
+                }
+            }
+        },
+    ) {
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = state.dim)))
         Image(
             bitmap = bitmap,
@@ -191,12 +226,18 @@ fun Modifier.pinchPeek(
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
 
+    // Если карточка исчезла с экрана, пока её держали (например, расписание обновилось), картинку нужно вернуть.
+    DisposableEffect(owner, state) {
+        onDispose { if (state.owner == owner && state.holding) state.release() }
+    }
+
     this
         .onGloballyPositioned { coordinates = it }
         .pointerInput(owner, state) {
             awaitEachGesture {
                 awaitFirstDown(requireUnconsumed = false)
                 var zooming = false
+                try {
                 do {
                     val event = awaitPointerEvent()
                     val pressed = event.changes.count { it.pressed }
@@ -206,7 +247,10 @@ fun Modifier.pinchPeek(
                         val layout = coordinates
                         if (current != null && layout != null && layout.isAttached) {
                             zooming = true
-                            state.begin(owner, current, layout.boundsInRoot(), cornerRadiusPx)
+                            // Берём полный прямоугольник карточки, а не видимую его часть: boundsInRoot() обрезает его
+                            // по границам прокручиваемой области, и картинка при отрыве «сжималась» бы.
+                            val fullBounds = Rect(layout.positionInRoot(), layout.size.toSize())
+                            state.begin(owner, current, fullBounds, cornerRadiusPx)
                             scope.launch { loadSharp()?.let { state.upgrade(owner, it) } }
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         }
@@ -240,7 +284,10 @@ fun Modifier.pinchPeek(
                         }
                     }
                 } while (event.changes.any { it.pressed })
-                if (zooming) state.release()
+                } finally {
+                    // Жест оборвался (карточка пропала, система отменила касание): картинка не должна остаться в воздухе.
+                    if (zooming && state.holding) state.release()
+                }
             }
         }
 }

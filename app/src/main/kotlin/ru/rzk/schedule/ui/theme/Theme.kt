@@ -91,7 +91,13 @@ private val AppShapes = Shapes(
  * Также при смене [colors] сохраняем их для виджета и просим его перерисоваться.
  */
 @Composable
-fun ScheduleTheme(settings: Settings, darkBars: Boolean = false, content: @Composable () -> Unit) {
+fun ScheduleTheme(
+    settings: Settings,
+    darkBars: Boolean = false,
+    statusBarOverLight: Boolean = false,
+    navBarOverLight: Boolean = false,
+    content: @Composable () -> Unit,
+) {
     val dark = when (settings.theme) {
         ThemeMode.System -> isSystemInDarkTheme()
         ThemeMode.Light -> false
@@ -106,12 +112,13 @@ fun ScheduleTheme(settings: Settings, darkBars: Boolean = false, content: @Compo
         else -> LightColors
     }
 
-    LaunchedEffect(dark, darkBars) {
+    LaunchedEffect(dark, darkBars, statusBarOverLight, navBarOverLight) {
         val window = context.findActivity()?.window ?: return@LaunchedEffect
         val controller = WindowCompat.getInsetsController(window, view)
         val iconsOnDark = dark || darkBars // тёмный фон → светлые значки
-        controller.isAppearanceLightStatusBars = !iconsOnDark
-        controller.isAppearanceLightNavigationBars = !iconsOnDark
+        // Если под системной панелью сейчас светлая картинка (например, фото расписания при щипке), значки тёмные.
+        controller.isAppearanceLightStatusBars = statusBarOverLight || !iconsOnDark
+        controller.isAppearanceLightNavigationBars = navBarOverLight || !iconsOnDark
     }
 
     // Сохраняем цвета для виджета и сразу просим его перерисоваться.
