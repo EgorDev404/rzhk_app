@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,7 +49,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import ru.rzk.schedule.ui.theme.SeedPresets
 
 /**
@@ -158,31 +161,39 @@ fun ColorPickerDialog(initial: Int, onDismiss: () -> Unit, onConfirm: (Int) -> U
     var brightness by remember { mutableStateOf(start[2]) }
     val current = AndroidColor.HSVToColor(floatArrayOf(hue, saturation, brightness))
 
+    // В горизонтальной ориентации диалог низкий: квадрат ставим слева, а полосу оттенка и образец — справа.
+    val compact = isCompactHeight()
+
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = if (compact) Modifier.widthIn(max = 560.dp).fillMaxWidth(0.92f) else Modifier,
+        properties = DialogProperties(usePlatformDefaultWidth = !compact),
         title = { Text("Свой цвет") },
         text = {
-            Column(
-                Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                SaturationBrightnessBox(hue, saturation, brightness) { s, v ->
-                    saturation = s
-                    brightness = v
+            if (compact) {
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        SaturationBrightnessBox(hue, saturation, brightness, height = 140.dp) { s, v ->
+                            saturation = s
+                            brightness = v
+                        }
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        HueBar(hue) { hue = it }
+                        ColorPreview(current)
+                    }
                 }
-                HueBar(hue) { hue = it }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(
-                        Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(Color(current))
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
-                    )
-                    Text(
-                        String.format("#%06X", current and 0xFFFFFF),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+            } else {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    SaturationBrightnessBox(hue, saturation, brightness) { s, v ->
+                        saturation = s
+                        brightness = v
+                    }
+                    HueBar(hue) { hue = it }
+                    ColorPreview(current)
                 }
             }
         },
@@ -191,14 +202,35 @@ fun ColorPickerDialog(initial: Int, onDismiss: () -> Unit, onConfirm: (Int) -> U
     )
 }
 
+/** Образец выбранного цвета и его код. */
 @Composable
-private fun SaturationBrightnessBox(hue: Float, saturation: Float, brightness: Float, onChange: (Float, Float) -> Unit) {
+private fun ColorPreview(argb: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Color(argb))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+        )
+        Text(String.format("#%06X", argb and 0xFFFFFF), style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+@Composable
+private fun SaturationBrightnessBox(
+    hue: Float,
+    saturation: Float,
+    brightness: Float,
+    height: Dp = 180.dp,
+    onChange: (Float, Float) -> Unit,
+) {
     val hueColor = Color(AndroidColor.HSVToColor(floatArrayOf(hue, 1f, 1f)))
     val update by rememberUpdatedState(onChange)
     Box(
         Modifier
             .fillMaxWidth()
-            .height(180.dp)
+            .height(height)
             .clip(RoundedCornerShape(16.dp))
             .pointerInput(Unit) {
                 awaitEachGesture {
