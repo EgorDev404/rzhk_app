@@ -15,12 +15,14 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import ru.rzk.schedule.data.DEFAULT_SEED_COLOR
 import ru.rzk.schedule.data.Settings
 import ru.rzk.schedule.data.ThemeMode
 import ru.rzk.schedule.widget.BellsWidgetUpdater
@@ -108,8 +110,9 @@ fun ScheduleTheme(
     val colors = when {
         settings.dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> DarkColors
-        else -> LightColors
+        // Цвет по умолчанию — готовая палитра приложения; любой другой — схема, построенная из выбранного цвета.
+        settings.seedColor == DEFAULT_SEED_COLOR -> if (dark) DarkColors else LightColors
+        else -> remember(settings.seedColor, dark) { SeedColors.scheme(settings.seedColor, dark) }
     }
 
     LaunchedEffect(dark, darkBars, statusBarOverLight, navBarOverLight) {

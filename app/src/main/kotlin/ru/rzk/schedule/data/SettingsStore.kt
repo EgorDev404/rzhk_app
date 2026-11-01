@@ -8,9 +8,14 @@ import ru.rzk.schedule.widget.BellsWidgetUpdater
 
 enum class ThemeMode { System, Light, Dark }
 
+/** Цвет приложения по умолчанию (синий): для него используется фирменная палитра. */
+val DEFAULT_SEED_COLOR: Int = 0xFF3A5BA9.toInt()
+
 data class Settings(
     val notifications: Boolean = true,
     val dynamicColor: Boolean = true,
+    /** Основной цвет приложения, когда «Цвета из обоев» выключены (ARGB). */
+    val seedColor: Int = DEFAULT_SEED_COLOR,
     val theme: ThemeMode = ThemeMode.System,
     /** false — таблица звонков из 8 уроков (по умолчанию), true — все 12. */
     val bellsFull: Boolean = false,
@@ -33,6 +38,7 @@ class SettingsStore(context: Context) {
         prefs.edit()
             .putBoolean("notifications", next.notifications)
             .putBoolean("dynamic", next.dynamicColor)
+            .putInt("seed_color", next.seedColor)
             .putString("theme", next.theme.name)
             .putBoolean("bells_full", next.bellsFull)
             .putBoolean("dev_mode", next.devMode)
@@ -71,6 +77,7 @@ class SettingsStore(context: Context) {
     private fun read() = Settings(
         notifications = prefs.getBoolean("notifications", true),
         dynamicColor = prefs.getBoolean("dynamic", true),
+        seedColor = prefs.getInt("seed_color", DEFAULT_SEED_COLOR),
         theme = runCatching { ThemeMode.valueOf(prefs.getString("theme", null) ?: "System") }
             .getOrDefault(ThemeMode.System),
         bellsFull = prefs.getBoolean("bells_full", false),

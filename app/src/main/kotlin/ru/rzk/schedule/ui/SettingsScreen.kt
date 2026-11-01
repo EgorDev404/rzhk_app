@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.CircleShape
@@ -224,6 +225,15 @@ fun SettingsScreen(
                                 )
                             },
                             colors = transparentItem(),
+                        )
+                    }
+                    // Свои цвета доступны, пока не включены «Цвета из обоев» (на Android 11 и ниже — всегда).
+                    AnimatedVisibility(
+                        visible = !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && settings.dynamicColor),
+                    ) {
+                        SeedColorChooser(
+                            selected = settings.seedColor,
+                            onSelect = { color -> onChange { it.copy(seedColor = color) } },
                         )
                     }
                 }
