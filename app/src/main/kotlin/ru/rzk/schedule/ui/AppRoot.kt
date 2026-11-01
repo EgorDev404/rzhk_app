@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import ru.rzk.schedule.app
+import ru.rzk.schedule.ui.theme.NightMode
 import ru.rzk.schedule.ui.theme.ScheduleTheme
 import ru.rzk.schedule.work.WorkScheduler
 
@@ -75,6 +76,9 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
         if (needsPermission) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
         else store.update { it.copy(notifications = true) }
     }
+
+    // Выбор темы в приложении запоминается и в системе: так заставка следующего запуска будет в той же теме.
+    LaunchedEffect(settings.themeMode) { NightMode.apply(context, settings.themeMode) }
 
     val pinch = rememberPinchZoomState()
 

@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import ru.rzk.schedule.data.ScheduleRepository
 import ru.rzk.schedule.data.SettingsStore
 import ru.rzk.schedule.data.SiteClient
+import ru.rzk.schedule.ui.theme.NightMode
 import ru.rzk.schedule.work.Notifier
 import ru.rzk.schedule.work.WorkScheduler
 
@@ -21,6 +22,8 @@ class ScheduleApp : Application() {
     override fun onCreate() {
         super.onCreate()
         settings = SettingsStore(this)
+        // Заставка следующего запуска должна быть в той же теме, что выбрана в приложении.
+        NightMode.apply(this, settings.current.themeMode)
         repository = ScheduleRepository(this, SiteClient())
         Notifier.createChannel(this)
         WorkScheduler.apply(this, settings.current)
