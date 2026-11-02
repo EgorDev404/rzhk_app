@@ -258,17 +258,17 @@ private fun DrawScope.drawDrift(
 ) {
     val w = size.width
     val steps = max(16, (w / 5f).toInt())
-    val overlap = 1.5f // чуть заходим на карточку, чтобы между снегом и краем не было щели
+    // Сугроб рисуется строго внутри верхнего края карточки, не вылезая за её границы.
     val path = Path()
-    path.moveTo(0f, overlap)
+    path.moveTo(0f, 0f)
     for (i in 0..steps) {
         val x = w * i / steps
         // К закруглённым углам сугроб сходит на нет.
         val taper = smooth(x / (corner * 1.4f)) * smooth((w - x) / (corner * 1.4f))
         val h = shape.height(x / w) * taper * depth * maxHeight
-        path.lineTo(x, overlap - h)
+        path.lineTo(x, -h)
     }
-    path.lineTo(w, overlap)
+    path.lineTo(w, 0f)
     path.close()
     drawPath(path, fill)
     drawPath(path, edge, style = Stroke(width = 1.dp.toPx()))

@@ -222,6 +222,8 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
             // Зимой над карточкой лежат мини-сугробы: им нужно место сверху.
             .then(if (LocalWinter.current != null) Modifier.padding(top = 12.dp) else Modifier)
             .snowCap(seed = file.name.hashCode())
+            // Обрезаем содержимое по форме карточки, чтобы сугроб не «левитировал» над краем.
+            .clip(RoundedCornerShape(24.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

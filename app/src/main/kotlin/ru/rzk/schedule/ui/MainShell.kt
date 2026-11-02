@@ -2,6 +2,7 @@ package ru.rzk.schedule.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -140,12 +141,13 @@ fun MainShell(
                         } else Modifier,
                     ),
             ) {
+                val spec = tween(220, easing = FastOutSlowInEasing)
                 AnimatedContent(
                     targetState = tab,
                     transitionSpec = {
                         val forward = targetState > initialState
-                        (slideInHorizontally(tween(300)) { if (forward) it / 5 else -it / 5 } + fadeIn(tween(300))) togetherWith
-                            (slideOutHorizontally(tween(300)) { if (forward) -it / 5 else it / 5 } + fadeOut(tween(200)))
+                        (slideInHorizontally(spec) { if (forward) it / 4 else -it / 4 } + fadeIn(spec)) togetherWith
+                            (slideOutHorizontally(spec) { if (forward) -it / 4 else it / 4 } + fadeOut(spec))
                     },
                     label = "tabs",
                 ) { current ->
