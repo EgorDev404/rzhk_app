@@ -1,14 +1,8 @@
 package ru.rzk.schedule.ui
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -80,15 +74,6 @@ fun HomeScreen(
     val pagerState = rememberPagerState { days.size }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    // Быстрая подсветка заголовка «Расписание» только при первом входе в приложение.
-    val titleHighlightAnimatable = remember { Animatable(1f) }
-    var titleHighlight by remember { mutableStateOf(1f) }
-    LaunchedEffect(Unit) {
-        titleHighlightAnimatable.animateTo(
-            0f,
-            tween(350, easing = FastOutSlowInEasing),
-        ) { value -> titleHighlight = value }
-    }
     // Низкий экран (телефон в горизонтали): вместо большой шапки — компактная, с переключателем дней внутри.
     val compact = isCompactHeight()
     val scrollBehavior = if (compact) {
@@ -161,22 +146,7 @@ fun HomeScreen(
                 )
             } else {
                 LargeTopAppBar(
-                    title = {
-                        Box(Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "Расписание",
-                                modifier = Modifier.alpha(0.7f + 0.3f * titleHighlight),
-                            )
-                            Box(
-                                Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .height(3.dp)
-                                    .width(56.dp)
-                                    .background(MaterialTheme.colorScheme.primary)
-                                    .alpha(titleHighlight)
-                            )
-                        }
-                    },
+                    title = { Text("Расписание") },
                     actions = barActions,
                     scrollBehavior = scrollBehavior,
                     colors = TopAppBarDefaults.largeTopAppBarColors(
