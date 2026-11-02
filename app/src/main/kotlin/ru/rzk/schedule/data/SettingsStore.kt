@@ -21,6 +21,10 @@ data class Settings(
     val bellsFull: Boolean = false,
     /** Скрытый режим разработчика: на этот телефон приходят жалобы пользователей на красную лампочку. */
     val devMode: Boolean = false,
+    /** Зимнее оформление (снег) разрешено; показывается в сезон (1–20 декабря) или при включении разработчиком. */
+    val winter: Boolean = true,
+    /** Режим разработчика: показывать зимнее оформление независимо от даты. */
+    val devWinter: Boolean = false,
 )
 
 /** Настройки в SharedPreferences + поток для Compose. */
@@ -42,6 +46,8 @@ class SettingsStore(context: Context) {
             .putString("theme", next.theme.name)
             .putBoolean("bells_full", next.bellsFull)
             .putBoolean("dev_mode", next.devMode)
+            .putBoolean("winter", next.winter)
+            .putBoolean("dev_winter", next.devWinter)
             .apply()
         _flow.value = next
         // Виджет считает звонки по тому же режиму (8/12 уроков) — перерисовываем сразу, а не через минуту.
@@ -82,5 +88,7 @@ class SettingsStore(context: Context) {
             .getOrDefault(ThemeMode.System),
         bellsFull = prefs.getBoolean("bells_full", false),
         devMode = prefs.getBoolean("dev_mode", false),
+        winter = prefs.getBoolean("winter", true),
+        devWinter = prefs.getBoolean("dev_winter", false),
     )
 }

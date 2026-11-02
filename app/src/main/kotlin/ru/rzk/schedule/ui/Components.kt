@@ -46,6 +46,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import ru.rzk.schedule.ui.theme.snowCap
+import ru.rzk.schedule.ui.theme.LocalWinter
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -215,11 +217,16 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
     // на долю секунды вспыхивал серый слой. Нажатие по-прежнему открывает просмотр на весь экран.
     ElevatedCard(
         shape = RoundedCornerShape(24.dp),
-        modifier = Modifier.fillMaxWidth().clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onClick,
-        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            // Зимой над карточкой лежат мини-сугробы: им нужно место сверху.
+            .then(if (LocalWinter.current != null) Modifier.padding(top = 12.dp) else Modifier)
+            .snowCap(seed = file.name.hashCode())
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
     ) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(ratio).animateContentSize().then(

@@ -23,6 +23,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import ru.rzk.schedule.ui.theme.LocalWinter
+import ru.rzk.schedule.ui.theme.WinterState
+import ru.rzk.schedule.ui.theme.Winter
+import ru.rzk.schedule.ui.theme.SnowFall
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.derivedStateOf
@@ -93,8 +99,25 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
         derivedStateOf { pinch.coversBottom(bottomInset, rootView.height.toFloat()) }
     }
 
+    // Зимнее оформление: снегопад и сугробы (1–20 декабря или принудительно из режима разработчика).
+    val winterActive = Winter.isActive(settings)
+    val reduceMotion = remember {
+        android.provider.Settings.Global.getFloat(
+            context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
+        ) == 0f
+    }
+    val winter = remember(winterActive) { if (winterActive) WinterState(reduceMotion) else null }
+    LaunchedEffect(winter) {
+        // Сугробы растут примерно полминуты после включения.
+        if (winter != null && !winter.reduceMotion) {
+            animate(0f, 1f, animationSpec = tween(30_000, easing = LinearOutSlowInEasing)) { value, _ ->
+                winter.depth = value
+            }
+        }
+    }
+
     ScheduleTheme(settings, darkBars = viewerVisible, statusBarOverLight = overTop, navBarOverLight = overBottom) {
-        CompositionLocalProvider(LocalPinchZoom provides pinch) {
+        CompositionLocalProvider(LocalPinchZoom provides pinch, LocalWinter provides winter) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             AnimatedContent(
                 targetState = showSettings,
@@ -133,6 +156,9 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                     )
                 }
             }
+
+            // Снегопад поверх экранов, но под просмотром расписания на весь экран.
+            if (winter != null && !viewerVisible) SnowFall(winter)
 
             // BackHandler вынесен наружу: срабатывает только когда вьюер видим.
             BackHandler(enabled = viewerVisible) { viewerVisible = false }

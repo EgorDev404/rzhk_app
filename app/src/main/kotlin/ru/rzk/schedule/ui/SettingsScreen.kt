@@ -58,6 +58,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import ru.rzk.schedule.data.Dates
+import ru.rzk.schedule.ui.theme.Winter
 import ru.rzk.schedule.data.Reports
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Row
@@ -236,6 +238,20 @@ fun SettingsScreen(
                             onSelect = { color -> onChange { it.copy(seedColor = color) } },
                         )
                     }
+                    // Переключатель виден, пока зимнее оформление действует (сезон 1–20 декабря) или включено разработчиком.
+                    if (Winter.isSeason(Dates.today()) || settings.devWinter) {
+                        ListItem(
+                            headlineContent = { Text("Зимнее оформление") },
+                            supportingContent = { Text("Снегопад и сугробы на карточках с расписанием") },
+                            trailingContent = {
+                                Switch(
+                                    checked = settings.winter,
+                                    onCheckedChange = { on -> onChange { it.copy(winter = on) } },
+                                )
+                            },
+                            colors = transparentItem(),
+                        )
+                    }
                 }
 
                 // ---- о приложении ----
@@ -314,7 +330,14 @@ fun SettingsScreen(
                 }
 
                 if (settings.devMode) {
-                    DeveloperCard(onDisable = { onChange { it.copy(devMode = false) } })
+                    DeveloperCard(
+                        devWinter = settings.devWinter,
+                        onDevWinterChange = { on ->
+                            // Принудительное включение заодно возвращает пользовательский переключатель в «вкл».
+                            onChange { it.copy(devWinter = on, winter = if (on) true else it.winter) }
+                        },
+                        onDisable = { onChange { it.copy(devMode = false) } },
+                    )
                 }
 
                 Text(
@@ -397,7 +420,7 @@ private fun SettingsCard(title: String, content: @Composable () -> Unit) {
 
 /** Карточка режима разработчика: показывает, сколько жалоб на красную лампочку пришло сегодня. */
 @Composable
-private fun DeveloperCard(onDisable: () -> Unit) {
+private fun DeveloperCard(devWinter: Boolean, onDevWinterChange: (Boolean) -> Unit, onDisable: () -> Unit) {
     var count by remember { mutableStateOf<Int?>(null) }
     var refresh by remember { mutableStateOf(0) }
     LaunchedEffect(refresh) { count = Reports.countToday() }
@@ -410,6 +433,12 @@ private fun DeveloperCard(onDisable: () -> Unit) {
                         "Проверка идёт в фоне примерно раз в 15 минут, уведомления приложения должны быть разрешены.",
                 )
             },
+            colors = transparentItem(),
+        )
+        ListItem(
+            headlineContent = { Text("Зимнее оформление") },
+            supportingContent = { Text("Показывать снег независимо от даты на устройстве") },
+            trailingContent = { Switch(checked = devWinter, onCheckedChange = onDevWinterChange) },
             colors = transparentItem(),
         )
         Row(Modifier.padding(horizontal = 8.dp)) {
