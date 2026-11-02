@@ -84,7 +84,7 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     }
 
     // Выбор темы в приложении запоминается и в системе: так заставка следующего запуска будет в той же теме.
-    LaunchedEffect(settings.themeMode) { NightMode.apply(context, settings.themeMode) }
+    LaunchedEffect(settings.theme) { NightMode.apply(context, settings.theme) }
 
     val pinch = rememberPinchZoomState()
 

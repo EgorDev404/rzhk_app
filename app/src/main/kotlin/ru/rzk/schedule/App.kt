@@ -23,7 +23,7 @@ class ScheduleApp : Application() {
         super.onCreate()
         settings = SettingsStore(this)
         // Заставка следующего запуска должна быть в той же теме, что выбрана в приложении.
-        NightMode.apply(this, settings.current.themeMode)
+        NightMode.apply(this, settings.current.theme)
         repository = ScheduleRepository(this, SiteClient())
         Notifier.createChannel(this)
         WorkScheduler.apply(this, settings.current)
