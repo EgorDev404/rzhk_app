@@ -146,8 +146,8 @@ fun MainShell(
                     targetState = tab,
                     transitionSpec = {
                         val forward = targetState > initialState
-                        (slideInHorizontally(spec) { if (forward) it / 4 else -it / 4 } + fadeIn(spec)) togetherWith
-                            (slideOutHorizontally(spec) { if (forward) -it / 4 else it / 4 } + fadeOut(spec))
+                        (slideInHorizontally(animationSpec = spec) { if (forward) it / 4 else -it / 4 } + fadeIn(spec)) togetherWith
+                            (slideOutHorizontally(animationSpec = spec) { if (forward) -it / 4 else it / 4 } + fadeOut(spec))
                     },
                     label = "tabs",
                 ) { current ->

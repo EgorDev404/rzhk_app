@@ -125,11 +125,11 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                 targetState = showSettings,
                 transitionSpec = {
                     if (targetState) {
-                        (slideInHorizontally(spec) { it / 3 } + fadeIn(spec)) togetherWith
-                            (slideOutHorizontally(spec) { -it / 4 } + fadeOut(spec))
+                        (slideInHorizontally(animationSpec = spec) { it / 3 } + fadeIn(spec)) togetherWith
+                            (slideOutHorizontally(animationSpec = spec) { -it / 4 } + fadeOut(spec))
                     } else {
-                        (slideInHorizontally(spec) { -it / 4 } + fadeIn(spec)) togetherWith
-                            (slideOutHorizontally(spec) { it / 3 } + fadeOut(spec))
+                        (slideInHorizontally(animationSpec = spec) { -it / 4 } + fadeIn(spec)) togetherWith
+                            (slideOutHorizontally(animationSpec = spec) { it / 3 } + fadeOut(spec))
                     }
                 },
                 label = "screens",

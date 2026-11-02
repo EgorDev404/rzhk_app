@@ -1,10 +1,13 @@
 package ru.rzk.schedule.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.align
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -78,12 +81,11 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     // Быстрая подсветка заголовка «Расписание» только при первом входе в приложение.
-    val titleHighlight by animateFloatAsState(
-        targetValue = 0f,
-        initialValue = 1f,
-        animationSpec = tween(350, easing = FastOutSlowInEasing),
-        label = "titleHighlight",
-    )
+    val titleHighlightAnimatable = remember { Animatable(1f) }
+    val titleHighlight by titleHighlightAnimatable.value
+    LaunchedEffect(Unit) {
+        titleHighlightAnimatable.animateTo(0f, tween(350, easing = FastOutSlowInEasing))
+    }
     // Низкий экран (телефон в горизонтали): вместо большой шапки — компактная, с переключателем дней внутри.
     val compact = isCompactHeight()
     val scrollBehavior = if (compact) {
