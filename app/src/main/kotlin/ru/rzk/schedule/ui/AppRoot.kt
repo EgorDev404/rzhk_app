@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -120,16 +121,16 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     ScheduleTheme(settings, darkBars = viewerVisible, statusBarOverLight = overTop, navBarOverLight = overBottom) {
         CompositionLocalProvider(LocalPinchZoom provides pinch, LocalWinter provides winter) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            val spec = tween(220, easing = FastOutSlowInEasing)
+            val spec: AnimationSpec<Float> = tween(220, easing = FastOutSlowInEasing)
             AnimatedContent(
                 targetState = showSettings,
                 transitionSpec = {
                     if (targetState) {
-                        (slideInHorizontally(animationSpec = spec) { it / 3 } + fadeIn(spec)) togetherWith
-                            (slideOutHorizontally(animationSpec = spec) { -it / 4 } + fadeOut(spec))
+                        (slideInHorizontally(animationSpec = spec) { it / 3f } + fadeIn(animationSpec = spec)) togetherWith
+                            (slideOutHorizontally(animationSpec = spec) { -it / 4f } + fadeOut(animationSpec = spec))
                     } else {
-                        (slideInHorizontally(animationSpec = spec) { -it / 4 } + fadeIn(spec)) togetherWith
-                            (slideOutHorizontally(animationSpec = spec) { it / 3 } + fadeOut(spec))
+                        (slideInHorizontally(animationSpec = spec) { -it / 4f } + fadeIn(animationSpec = spec)) togetherWith
+                            (slideOutHorizontally(animationSpec = spec) { it / 3f } + fadeOut(animationSpec = spec))
                     }
                 },
                 label = "screens",
