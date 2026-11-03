@@ -36,6 +36,7 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.zIndex
 import androidx.compose.runtime.remember
 import kotlinx.coroutines.delay
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -192,6 +193,9 @@ private fun TabLayer(fraction: () -> Float, active: Boolean, content: @Composabl
     Box(
         Modifier
             .fillMaxSize()
+            // Показываемая вкладка всегда сверху, в том числе для касаний: иначе невидимая вкладка, лежащая выше,
+            // перехватывала бы нажатия и экран под ней «не работал».
+            .zIndex(if (active) 1f else 0f)
             .graphicsLayer {
                 val f = fraction()
                 if (active) {
