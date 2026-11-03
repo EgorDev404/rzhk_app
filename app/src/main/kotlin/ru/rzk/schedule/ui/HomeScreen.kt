@@ -146,7 +146,7 @@ fun HomeScreen(
                 )
             } else {
                 LargeTopAppBar(
-                    title = { Text("Расписание") },
+                    title = { LaunchHighlightTitle("Расписание") },
                     actions = barActions,
                     scrollBehavior = scrollBehavior,
                     colors = TopAppBarDefaults.largeTopAppBarColors(

@@ -36,6 +36,13 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,7 +78,6 @@ fun MainShell(
     onOpenViewer: (ViewerRequest) -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(0) }
-    val stateHolder = rememberSaveableStateHolder()
 
     // Внешний запрос на конкретную вкладку (тап по виджету).
     val pendingTabValue by pendingTab.collectAsStateWithLifecycle()
@@ -140,34 +146,75 @@ fun MainShell(
                         } else Modifier,
                     ),
             ) {
-                AnimatedContent(
-                    targetState = tab,
-                    transitionSpec = {
-                        val forward = targetState > initialState
-                        (slideInHorizontally(tween(300)) { if (forward) it / 5 else -it / 5 } + fadeIn(tween(300))) togetherWith
-                            (slideOutHorizontally(tween(300)) { if (forward) -it / 5 else it / 5 } + fadeOut(tween(200)))
-                    },
-                    label = "tabs",
-                ) { current ->
-                    stateHolder.SaveableStateProvider(current) {
-                        if (current == 0) {
-                            HomeScreen(
-                                vm = vm,
-                                notificationsOn = notificationsOn,
-                                onOpenSettings = onOpenSettings,
-                                onEnableNotifications = onEnableNotifications,
-                                onOpenViewer = onOpenViewer,
-                            )
-                        } else {
-                            BellsScreen(
-                                fullDay = bellsFull,
-                                onFullDayChange = onBellsFullChange,
-                                onOpenSettings = onOpenSettings,
-                            )
-                        }
+                // Обе вкладки собраны заранее и лежат друг на друге: переключение только плавно меняет прозрачность и
+                // масштаб слоёв (без пересборки экранов), поэтому нет «заторможенности» даже на 144 Гц.
+                val tabProgress = animateFloatAsState(
+                    targetValue = if (tab == 0) 0f else 1f,
+                    animationSpec = tween(300, easing = LinearEasing),
+                    label = "tab",
+                )
+                // «Звонки» собираем не на старте (чтобы не тормозить запуск), а чуть позже, когда главный экран уже виден.
+                var bellsReady by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    delay(1200)
+                    bellsReady = true
+                }
+
+                TabLayer(fraction = { 1f - tabProgress.value }, active = tab == 0) {
+                    HomeScreen(
+                        vm = vm,
+                        notificationsOn = notificationsOn,
+                        onOpenSettings = onOpenSettings,
+                        onEnableNotifications = onEnableNotifications,
+                        onOpenViewer = onOpenViewer,
+                    )
+                }
+                if (bellsReady || tab == 1) {
+                    TabLayer(fraction = { tabProgress.value }, active = tab == 1) {
+                        BellsScreen(
+                            fullDay = bellsFull,
+                            onFullDayChange = onBellsFullChange,
+                            onOpenSettings = onOpenSettings,
+                        )
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * Слой вкладки. Показываемая вкладка появляется чуть позже, чем гаснет предыдущая, и слегка «вырастает»
+ * (приём Material «fade through»). Скрытая вкладка не принимает касаний и не видна для экранных помощников.
+ */
+@Composable
+private fun TabLayer(fraction: () -> Float, active: Boolean, content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                val f = fraction()
+                if (active) {
+                    alpha = ((f - 0.3f) / 0.7f).coerceIn(0f, 1f)
+                    val scale = 0.95f + 0.05f * f
+                    scaleX = scale
+                    scaleY = scale
+                } else {
+                    alpha = ((f - 0.7f) / 0.3f).coerceIn(0f, 1f)
+                }
+            }
+            .then(
+                if (active) {
+                    Modifier
+                } else {
+                    Modifier
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                            }
+                        }
+                        .clearAndSetSemantics { }
+                },
+            ),
+    ) { content() }
 }

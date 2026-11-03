@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -34,6 +35,7 @@ import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 /**
@@ -88,7 +90,8 @@ fun SnowFall(winter: WinterState) {
         }
     }
 
-    Canvas(Modifier.fillMaxSize()) {
+    // graphicsLayer выделяет снег в отдельный слой: покадровая перерисовка не трогает остальной интерфейс.
+    Canvas(Modifier.fillMaxSize().graphicsLayer { }) {
         field.resize(size.width, size.height)
         field.draw(this, flakeColor, frame)
     }
@@ -257,19 +260,41 @@ private fun DrawScope.drawDrift(
     edge: Color,
 ) {
     val w = size.width
-    val steps = max(16, (w / 5f).toInt())
-    val overlap = 1.5f // чуть заходим на карточку, чтобы между снегом и краем не было щели
-    val path = Path()
-    path.moveTo(0f, overlap)
+    val r = min(corner, w / 2f)
+    val steps = max(24, (w / 4f).toInt())
+
+    // Верхняя кромка сугроба идёт вдоль карточки, а на закруглённых углах огибает дугу: снег лежит на карточке,
+    // а не висит над ней. К самым краям сугроб сходит на нет.
+    val rim = Path()
+    val body = Path()
     for (i in 0..steps) {
         val x = w * i / steps
-        // К закруглённым углам сугроб сходит на нет.
-        val taper = smooth(x / (corner * 1.4f)) * smooth((w - x) / (corner * 1.4f))
-        val h = shape.height(x / w) * taper * depth * maxHeight
-        path.lineTo(x, overlap - h)
+        val taper = smooth(x / (r * 0.8f)) * smooth((w - x) / (r * 0.8f))
+        val y = cardEdgeY(x, w, r) - shape.height(x / w) * taper * depth * maxHeight
+        if (i == 0) {
+            rim.moveTo(x, y)
+            body.moveTo(x, y)
+        } else {
+            rim.lineTo(x, y)
+            body.lineTo(x, y)
+        }
     }
-    path.lineTo(w, overlap)
-    path.close()
-    drawPath(path, fill)
-    drawPath(path, edge, style = Stroke(width = 1.dp.toPx()))
+    // Низ закрашиваем ниже линии углов: всё, что попало на саму карточку, она закрывает собой (снег рисуется позади неё).
+    val bottom = r + 2f
+    body.lineTo(w, bottom)
+    body.lineTo(0f, bottom)
+    body.close()
+    drawPath(body, fill)
+    drawPath(rim, edge, style = Stroke(width = 1.dp.toPx(), cap = StrokeCap.Round))
+}
+
+/** Где проходит верхний край карточки с закруглёнными углами радиуса [r] на расстоянии [x] от левого края. */
+private fun cardEdgeY(x: Float, w: Float, r: Float): Float {
+    val d = when {
+        x < r -> r - x
+        x > w - r -> x - (w - r)
+        else -> 0f
+    }
+    if (d <= 0f) return 0f
+    return r - sqrt(max(0f, r * r - d * d))
 }

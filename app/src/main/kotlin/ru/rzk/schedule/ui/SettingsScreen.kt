@@ -58,6 +58,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.produceState
 import ru.rzk.schedule.data.Dates
 import ru.rzk.schedule.ui.theme.Winter
 import ru.rzk.schedule.data.Reports
@@ -131,6 +133,13 @@ fun SettingsScreen(
     ) { padding ->
         // Прокрутка — на всю ширину экрана, а сами карточки ограничены и выровнены по центру.
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
+            // Экран собирается по частям, по одной за кадр: тяжёлая сборка не «замораживает» первые кадры анимации открытия.
+            val stage by produceState(initialValue = 1) {
+                for (next in 2..3) {
+                    withFrameNanos { }
+                    value = next
+                }
+            }
             CenteredColumn(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 maxWidth = 640.dp,
@@ -154,6 +163,7 @@ fun SettingsScreen(
                     SystemStatusRow { message -> scope.launch { snackbar.showSnackbar(message) } }
                 }
 
+                if (stage >= 2) {
                 // ---- если уведомления не приходят ----
                 SettingsCard(title = "Если уведомления не приходят") {
                     Text(
@@ -254,6 +264,8 @@ fun SettingsScreen(
                     }
                 }
 
+                }
+                if (stage >= 3) {
                 // ---- о приложении ----
                 SettingsCard(title = "О приложении") {
                     Text(
@@ -348,6 +360,7 @@ fun SettingsScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 )
+                }
                 Spacer(Modifier.height(24.dp))
             }
         }

@@ -23,6 +23,13 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import kotlin.math.roundToInt
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.animation.core.animateFloatAsState
 import ru.rzk.schedule.ui.theme.LocalWinter
 import ru.rzk.schedule.ui.theme.WinterState
 import ru.rzk.schedule.ui.theme.Winter
@@ -111,7 +118,7 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
         // Сугробы растут примерно полминуты после включения.
         if (winter != null && !winter.reduceMotion) {
             animate(0f, 1f, animationSpec = tween(30_000, easing = LinearOutSlowInEasing)) { value, _ ->
-                winter.depth = value
+                winter.depth = (value * 100f).roundToInt() / 100f
             }
         }
     }
@@ -119,28 +126,26 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     ScheduleTheme(settings, darkBars = viewerVisible, statusBarOverLight = overTop, navBarOverLight = overBottom) {
         CompositionLocalProvider(LocalPinchZoom provides pinch, LocalWinter provides winter) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            AnimatedContent(
-                targetState = showSettings,
-                transitionSpec = {
-                    if (targetState) {
-                        (slideInHorizontally(tween(320)) { it / 4 } + fadeIn(tween(320))) togetherWith
-                            (slideOutHorizontally(tween(320)) { -it / 6 } + fadeOut(tween(200)))
-                    } else {
-                        (slideInHorizontally(tween(320)) { -it / 6 } + fadeIn(tween(320))) togetherWith
-                            (slideOutHorizontally(tween(320)) { it / 4 } + fadeOut(tween(200)))
-                    }
-                },
-                label = "screens",
-            ) { settingsOpen ->
-                if (settingsOpen) {
-                    BackHandler { showSettings = false }
-                    SettingsScreen(
-                        settings = settings,
-                        onChange = { transform -> store.update(transform) },
-                        onEnableNotifications = enableNotifications,
-                        onBack = { showSettings = false },
-                    )
-                } else {
+            // Главный экран не уничтожается, когда открыты настройки: он остаётся собранным под ними. Раньше при каждом
+            // открытии и закрытии настроек он собирался заново, отсюда и «задумчивость» на первых кадрах анимации.
+            val settingsProgress = animateFloatAsState(
+                targetValue = if (showSettings) 1f else 0f,
+                animationSpec = tween(
+                    durationMillis = if (showSettings) 360 else 280,
+                    easing = if (showSettings) Motion.EmphasizedDecelerate else Motion.EmphasizedAccelerate,
+                ),
+                label = "settings",
+            )
+            // Пока настройки на экране или уезжают, показываем их; значение читается так, чтобы не пересобирать экран на каждом кадре.
+            val settingsVisible by remember { derivedStateOf { showSettings || settingsProgress.value > 0.001f } }
+
+            Box(Modifier.fillMaxSize()) {
+                // Главный экран слегка уезжает влево и затемняется (параллакс), настройки наезжают справа.
+                Box(
+                    Modifier.fillMaxSize().graphicsLayer {
+                        translationX = -size.width * 0.2f * settingsProgress.value
+                    },
+                ) {
                     MainShell(
                         vm = vm,
                         pendingTab = pendingTab,
@@ -154,6 +159,31 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                             viewerVisible = true
                         },
                     )
+                    if (settingsVisible) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = 0.18f * settingsProgress.value }
+                                .background(Color.Black)
+                                // Пока открыты настройки, главный экран под ними не должен реагировать на касания.
+                                .pointerInput(Unit) {
+                                    awaitPointerEventScope {
+                                        while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                                    }
+                                },
+                        )
+                    }
+                }
+                if (settingsVisible) {
+                    Box(Modifier.fillMaxSize().graphicsLayer { translationX = size.width * (1f - settingsProgress.value) }) {
+                        BackHandler(enabled = showSettings) { showSettings = false }
+                        SettingsScreen(
+                        settings = settings,
+                        onChange = { transform -> store.update(transform) },
+                        onEnableNotifications = enableNotifications,
+                        onBack = { showSettings = false },
+                    )
+                    }
                 }
             }
 
