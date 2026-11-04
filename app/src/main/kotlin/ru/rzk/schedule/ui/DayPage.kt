@@ -19,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.EventBusy
+import ru.rzk.schedule.ui.theme.LocalWinter
+import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Warning
@@ -142,14 +144,14 @@ private fun NotPublishedState(
 ) {
     if (day.dayOfWeek == DayOfWeek.SUNDAY) {
         StatusState(
-            icon = Icons.Rounded.EventBusy,
+            icon = if (LocalWinter.current != null) Icons.Rounded.AcUnit else Icons.Rounded.EventBusy,
             title = "Воскресенье — выходной",
             message = "Занятий по расписанию нет. Хорошего отдыха!",
         )
         return
     }
     StatusState(
-        icon = Icons.Rounded.EventBusy,
+        icon = if (LocalWinter.current != null) Icons.Rounded.AcUnit else Icons.Rounded.EventBusy,
         title = "Расписания ${Dates.accusative(day)} пока нет",
         message = "Колледж ещё не выложил файл. Потяните вниз, чтобы проверить снова" +
             if (notificationsOn) " — или просто подождите: мы сообщим, как только он появится." else ".",

@@ -47,6 +47,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import ru.rzk.schedule.ui.theme.snowCap
+import ru.rzk.schedule.ui.theme.icicles
 import ru.rzk.schedule.ui.theme.LocalWinter
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -222,6 +223,7 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
             // Зимой над карточкой лежат мини-сугробы: им нужно место сверху.
             .then(if (LocalWinter.current != null) Modifier.padding(top = 12.dp) else Modifier)
             .snowCap(seed = file.name.hashCode())
+            .icicles(seed = file.name.hashCode() * 31 + 7)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

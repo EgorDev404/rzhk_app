@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.animation.core.animateFloatAsState
 import ru.rzk.schedule.ui.theme.LocalWinter
+import ru.rzk.schedule.ui.theme.FrostCorners
 import ru.rzk.schedule.ui.theme.WinterState
 import ru.rzk.schedule.ui.theme.Winter
 import ru.rzk.schedule.ui.theme.SnowFall
@@ -188,7 +189,10 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
             }
 
             // Снегопад поверх экранов, но под просмотром расписания на весь экран.
-            if (winter != null && !viewerVisible) SnowFall(winter)
+            if (winter != null && !viewerVisible) {
+                FrostCorners(winter)
+                SnowFall(winter)
+            }
 
             // BackHandler вынесен наружу: срабатывает только когда вьюер видим.
             BackHandler(enabled = viewerVisible) { viewerVisible = false }

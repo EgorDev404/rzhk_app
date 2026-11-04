@@ -36,6 +36,8 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
+import ru.rzk.schedule.ui.theme.snowCap
 import androidx.compose.ui.zIndex
 import androidx.compose.runtime.remember
 import kotlinx.coroutines.delay
@@ -100,7 +102,8 @@ fun MainShell(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (!useRail) {
-                NavigationBar {
+                // Зимой на верхней кромке нижней панели лежит снег.
+                NavigationBar(modifier = Modifier.snowCap(seed = 77, cornerRadius = 0.dp, maxHeight = 9.dp)) {
                     Tab.entries.forEachIndexed { index, item ->
                         val selected = tab == index
                         NavigationBarItem(

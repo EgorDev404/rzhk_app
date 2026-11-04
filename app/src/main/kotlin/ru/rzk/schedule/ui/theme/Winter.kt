@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -97,12 +98,19 @@ fun SnowFall(winter: WinterState) {
     }
 }
 
+private const val GUST_SECONDS = 3.4f
+
 private class SnowField(private val density: Float) {
     private val random = Random(7)
     private var width = 0f
     private var height = 0f
     private var count = 0
     private var time = 0f
+
+    // Порывы ветра: раз в 20–40 секунд налетает сильный порыв, и снег на несколько секунд сносит в сторону.
+    private var untilGust = 14f + random.nextFloat() * 10f
+    private var gustLeft = 0f
+    private var gustDirection = 1f
 
     private var baseX = FloatArray(0)
     private var y = FloatArray(0)
@@ -146,7 +154,19 @@ private class SnowField(private val density: Float) {
         if (count == 0 || dt <= 0f) return
         time += dt
         // Лёгкий ветер: медленно меняется по направлению и силе.
-        val wind = (sin(time * 0.17f) * 12f + sin(time * 0.05f) * 6f) * density
+        untilGust -= dt
+        if (gustLeft <= 0f && untilGust <= 0f) {
+            gustLeft = GUST_SECONDS
+            gustDirection = if (random.nextBoolean()) 1f else -1f
+            untilGust = 22f + random.nextFloat() * 20f
+        }
+        var gust = 0f
+        if (gustLeft > 0f) {
+            gustLeft -= dt
+            val k = (1f - gustLeft / GUST_SECONDS).coerceIn(0f, 1f)
+            gust = sin(PI.toFloat() * k) * 95f * gustDirection // нарастает, достигает максимума и стихает
+        }
+        val wind = (sin(time * 0.17f) * 12f + sin(time * 0.05f) * 6f + gust) * density
         for (i in 0 until count) {
             y[i] += speed[i] * dt
             phase[i] += freq[i] * dt
@@ -269,7 +289,8 @@ private fun DrawScope.drawDrift(
     val body = Path()
     for (i in 0..steps) {
         val x = w * i / steps
-        val taper = smooth(x / (r * 0.8f)) * smooth((w - x) / (r * 0.8f))
+        val soft = r * 0.8f
+        val taper = if (soft < 1f) 1f else smooth(x / soft) * smooth((w - x) / soft)
         val y = cardEdgeY(x, w, r) - shape.height(x / w) * taper * depth * maxHeight
         if (i == 0) {
             rim.moveTo(x, y)
@@ -297,4 +318,158 @@ private fun cardEdgeY(x: Float, w: Float, r: Float): Float {
     }
     if (d <= 0f) return 0f
     return r - sqrt(max(0f, r * r - d * d))
+}
+
+// =================================================================================================
+// Иней по углам экрана
+// =================================================================================================
+
+/** Один отрезок ледяной «ветки»: координаты в dp от угла, момент появления и яркость. */
+private class FrostSegment(
+    val x0: Float, val y0: Float, val x1: Float, val y1: Float,
+    val grow: Float, val width: Float, val fade: Float,
+)
+
+/**
+ * Узор инея, как на замёрзшем окне: из угла веером растут стебли, от них под 60° отходят ветки, от веток — веточки.
+ * Строится один раз (с фиксированным зерном), поэтому узор всегда одинаковый.
+ */
+private object Frost {
+    private const val REACH = 150f
+
+    val segments: List<FrostSegment> by lazy {
+        val random = Random(2026)
+        val out = ArrayList<FrostSegment>()
+        for (degrees in listOf(20f, 45f, 70f)) {
+            branch(out, random, 0f, 0f, Math.toRadians(degrees.toDouble()).toFloat(), 118f, order = 0)
+        }
+        out
+    }
+
+    private fun branch(
+        out: MutableList<FrostSegment>, random: Random,
+        startX: Float, startY: Float, startAngle: Float, length: Float, order: Int,
+    ) {
+        var x = startX
+        var y = startY
+        var angle = startAngle
+        val step = max(5f, length / 7f)
+        var travelled = 0f
+        while (travelled < length) {
+            angle += (random.nextFloat() - 0.5f) * 0.18f
+            val nx = x + cos(angle) * step
+            val ny = y + sin(angle) * step
+            val reach = sqrt(nx * nx + ny * ny) / REACH
+            out += FrostSegment(
+                x, y, nx, ny,
+                grow = reach.coerceIn(0f, 1f),
+                width = if (order == 0) 1.1f else 0.8f,
+                fade = (1f - travelled / length * 0.6f - order * 0.12f).coerceAtLeast(0.2f),
+            )
+            if (order < 2 && travelled > step * 1.5f && random.nextFloat() < 0.6f) {
+                val side = if (random.nextBoolean()) 1f else -1f
+                branch(out, random, nx, ny, angle + side * 1.05f + (random.nextFloat() - 0.5f) * 0.2f, length * 0.4f, order + 1)
+            }
+            x = nx
+            y = ny
+            travelled += step
+        }
+    }
+}
+
+/** Иней в четырёх углах и лёгкое морозное свечение по верхнему и нижнему краю. Появляется постепенно. */
+@Composable
+fun FrostCorners(winter: WinterState) {
+    val onDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val ice = if (onDark) Color(0xFFD6ECFF) else Color(0xFF6FA8E0)
+    Canvas(Modifier.fillMaxSize().graphicsLayer { }) {
+        val depth = winter.depth
+        if (depth <= 0.02f) return@Canvas
+        val glow = 110.dp.toPx()
+        drawRect(Brush.verticalGradient(listOf(ice.copy(alpha = 0.10f * depth), Color.Transparent), startY = 0f, endY = glow))
+        drawRect(
+            Brush.verticalGradient(
+                listOf(Color.Transparent, ice.copy(alpha = 0.10f * depth)),
+                startY = size.height - glow,
+                endY = size.height,
+            ),
+        )
+        for (corner in 0 until 4) {
+            val sx = if (corner % 2 == 0) 1f else -1f
+            val sy = if (corner < 2) 1f else -1f
+            val ox = if (sx > 0f) 0f else size.width
+            val oy = if (sy > 0f) 0f else size.height
+            val scale = density * if (corner < 2) 0.8f else 1f // сверху чуть меньше, чтобы не спорить со статус-баром
+            for (segment in Frost.segments) {
+                val a = ((depth - segment.grow * 0.9f) / 0.1f).coerceIn(0f, 1f)
+                if (a <= 0f) continue
+                drawLine(
+                    color = ice.copy(alpha = 0.34f * a * segment.fade),
+                    start = Offset(ox + sx * segment.x0 * scale, oy + sy * segment.y0 * scale),
+                    end = Offset(ox + sx * segment.x1 * scale, oy + sy * segment.y1 * scale),
+                    strokeWidth = segment.width * density,
+                    cap = StrokeCap.Round,
+                )
+            }
+        }
+    }
+}
+
+// =================================================================================================
+// Сосульки
+// =================================================================================================
+
+/**
+ * Сосульки вдоль нижнего края карточки. Появляются вместе с зимой и вырастают с небольшими отличиями по времени.
+ * Рисуются под краем карточки (за ней), поэтому сразу под карточкой нужен небольшой зазор.
+ */
+@Composable
+fun Modifier.icicles(seed: Int, cornerRadius: Dp = 24.dp, maxLength: Dp = 11.dp): Modifier {
+    val winter = LocalWinter.current ?: return this
+    val onDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val body = if (onDark) Color(0xB8CFE8FF) else Color(0xCCB3D6F6)
+    val shine = Color(0xB3FFFFFF)
+    return this.drawBehind {
+        val depth = winter.depth
+        if (depth > 0.15f) drawIcicles(seed, depth, cornerRadius.toPx(), maxLength.toPx(), body, shine)
+    }
+}
+
+private fun DrawScope.drawIcicles(seed: Int, depth: Float, corner: Float, maxLength: Float, body: Color, shine: Color) {
+    val w = size.width
+    val h = size.height
+    val r = min(corner, w / 2f)
+    val random = Random(seed)
+    val count = (w / (18.dp.toPx())).toInt().coerceIn(6, 30)
+    for (i in 0 until count) {
+        // Все случайные числа берём до проверок: рисунок не «прыгает» при росте.
+        val u = (i + 0.2f + 0.6f * random.nextFloat()) / count
+        val short = random.nextFloat() < 0.18f
+        val lengthFactor = 0.35f + 0.65f * random.nextFloat()
+        val width = (2.6f + 3.2f * random.nextFloat()) * density
+        val delay = random.nextFloat() * 0.5f
+        val sway = (random.nextFloat() - 0.5f) * 0.5f
+
+        val grow = smooth((depth - 0.2f - delay * 0.5f) / 0.5f)
+        if (grow <= 0f) continue
+        val x = r + (w - 2f * r) * u
+        val length = maxLength * lengthFactor * (if (short) 0.35f else 1f) * grow
+        val tipX = x + sway * width
+
+        val icicle = Path().apply {
+            moveTo(x - width / 2f, h - 1f)
+            lineTo(tipX, h + length)
+            lineTo(x + width / 2f, h - 1f)
+            close()
+        }
+        drawPath(icicle, body)
+        // Блик на левой грани, чтобы лёд выглядел прозрачным и гранёным.
+        val glint = Path().apply {
+            moveTo(x - width / 2f, h - 1f)
+            lineTo(tipX, h + length)
+            lineTo(x - width * 0.05f, h - 1f)
+            close()
+        }
+        drawPath(glint, shine.copy(alpha = shine.alpha * 0.7f))
+    }
 }
