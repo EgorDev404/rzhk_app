@@ -25,6 +25,10 @@ data class Settings(
     val winter: Boolean = true,
     /** Режим разработчика: показывать зимнее оформление независимо от даты. */
     val devWinter: Boolean = false,
+    /** Новогоднее оформление (ёлка, гирлянда, трости, счётчик) разрешено; показывается с 20 декабря по 9 января. */
+    val newYear: Boolean = true,
+    /** Режим разработчика: показывать новогоднее оформление независимо от даты. */
+    val devNewYear: Boolean = false,
 )
 
 /** Настройки в SharedPreferences + поток для Compose. */
@@ -48,6 +52,8 @@ class SettingsStore(context: Context) {
             .putBoolean("dev_mode", next.devMode)
             .putBoolean("winter", next.winter)
             .putBoolean("dev_winter", next.devWinter)
+            .putBoolean("new_year", next.newYear)
+            .putBoolean("dev_new_year", next.devNewYear)
             .apply()
         _flow.value = next
         // Виджет считает звонки по тому же режиму (8/12 уроков) — перерисовываем сразу, а не через минуту.
@@ -90,5 +96,7 @@ class SettingsStore(context: Context) {
         devMode = prefs.getBoolean("dev_mode", false),
         winter = prefs.getBoolean("winter", true),
         devWinter = prefs.getBoolean("dev_winter", false),
+        newYear = prefs.getBoolean("new_year", true),
+        devNewYear = prefs.getBoolean("dev_new_year", false),
     )
 }

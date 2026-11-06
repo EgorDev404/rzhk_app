@@ -61,6 +61,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.produceState
 import ru.rzk.schedule.data.Dates
+import ru.rzk.schedule.ui.theme.NewYear
 import ru.rzk.schedule.ui.theme.Winter
 import ru.rzk.schedule.data.Reports
 import androidx.compose.material3.TextButton
@@ -248,6 +249,20 @@ fun SettingsScreen(
                             onSelect = { color -> onChange { it.copy(seedColor = color) } },
                         )
                     }
+                    // Новогоднее оформление (20 декабря – 9 января): ёлка, гирлянда, трости, счётчик дней.
+                    if (NewYear.isSeason(Dates.today()) || settings.devNewYear) {
+                        ListItem(
+                            headlineContent = { Text("Новогоднее оформление") },
+                            supportingContent = { Text("Ёлка, гирлянда, леденцовые трости и счётчик дней до Нового года") },
+                            trailingContent = {
+                                Switch(
+                                    checked = settings.newYear,
+                                    onCheckedChange = { on -> onChange { it.copy(newYear = on) } },
+                                )
+                            },
+                            colors = transparentItem(),
+                        )
+                    }
                     // Переключатель виден, пока зимнее оформление действует (сезон 1–20 декабря) или включено разработчиком.
                     if (Winter.isSeason(Dates.today()) || settings.devWinter) {
                         ListItem(
@@ -343,6 +358,10 @@ fun SettingsScreen(
 
                 if (settings.devMode) {
                     DeveloperCard(
+                        devNewYear = settings.devNewYear,
+                        onDevNewYearChange = { on ->
+                            onChange { it.copy(devNewYear = on, newYear = if (on) true else it.newYear) }
+                        },
                         devWinter = settings.devWinter,
                         onDevWinterChange = { on ->
                             // Принудительное включение заодно возвращает пользовательский переключатель в «вкл».
@@ -433,7 +452,13 @@ private fun SettingsCard(title: String, content: @Composable () -> Unit) {
 
 /** Карточка режима разработчика: показывает, сколько жалоб на красную лампочку пришло сегодня. */
 @Composable
-private fun DeveloperCard(devWinter: Boolean, onDevWinterChange: (Boolean) -> Unit, onDisable: () -> Unit) {
+private fun DeveloperCard(
+    devNewYear: Boolean,
+    onDevNewYearChange: (Boolean) -> Unit,
+    devWinter: Boolean,
+    onDevWinterChange: (Boolean) -> Unit,
+    onDisable: () -> Unit,
+) {
     var count by remember { mutableStateOf<Int?>(null) }
     var refresh by remember { mutableStateOf(0) }
     LaunchedEffect(refresh) { count = Reports.countToday() }
@@ -452,6 +477,12 @@ private fun DeveloperCard(devWinter: Boolean, onDevWinterChange: (Boolean) -> Un
             headlineContent = { Text("Зимнее оформление") },
             supportingContent = { Text("Показывать снег независимо от даты на устройстве") },
             trailingContent = { Switch(checked = devWinter, onCheckedChange = onDevWinterChange) },
+            colors = transparentItem(),
+        )
+        ListItem(
+            headlineContent = { Text("Новогоднее оформление") },
+            supportingContent = { Text("Показывать ёлку, гирлянду и счётчик независимо от даты на устройстве") },
+            trailingContent = { Switch(checked = devNewYear, onCheckedChange = onDevNewYearChange) },
             colors = transparentItem(),
         )
         Row(Modifier.padding(horizontal = 8.dp)) {

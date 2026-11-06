@@ -31,6 +31,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.animation.core.animateFloatAsState
 import ru.rzk.schedule.ui.theme.LocalWinter
+import ru.rzk.schedule.ui.theme.Garland
+import ru.rzk.schedule.ui.theme.LocalNewYear
+import ru.rzk.schedule.ui.theme.NewYearState
+import ru.rzk.schedule.ui.theme.NewYear
 import ru.rzk.schedule.ui.theme.FrostCorners
 import ru.rzk.schedule.ui.theme.WinterState
 import ru.rzk.schedule.ui.theme.Winter
@@ -108,13 +112,16 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     }
 
     // Зимнее оформление: снегопад и сугробы (1–20 декабря или принудительно из режима разработчика).
-    val winterActive = Winter.isActive(settings)
+    // Новогоднее оформление (20 декабря – 9 января) включает и зиму: снег остаётся.
+    val newYearActive = NewYear.isActive(settings)
+    val winterActive = Winter.isActive(settings) || newYearActive
     val reduceMotion = remember {
         android.provider.Settings.Global.getFloat(
             context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
         ) == 0f
     }
     val winter = remember(winterActive) { if (winterActive) WinterState(reduceMotion) else null }
+    val newYear = remember(newYearActive) { if (newYearActive) NewYearState(reduceMotion) else null }
     LaunchedEffect(winter) {
         // Сугробы растут примерно полминуты после включения.
         if (winter != null && !winter.reduceMotion) {
@@ -125,7 +132,11 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     }
 
     ScheduleTheme(settings, darkBars = viewerVisible, statusBarOverLight = overTop, navBarOverLight = overBottom) {
-        CompositionLocalProvider(LocalPinchZoom provides pinch, LocalWinter provides winter) {
+        CompositionLocalProvider(
+            LocalPinchZoom provides pinch,
+            LocalWinter provides winter,
+            LocalNewYear provides newYear,
+        ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             // Главный экран не уничтожается, когда открыты настройки: он остаётся собранным под ними. Раньше при каждом
             // открытии и закрытии настроек он собирался заново, отсюда и «задумчивость» на первых кадрах анимации.
@@ -193,6 +204,8 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                 FrostCorners(winter)
                 SnowFall(winter)
             }
+            // Гирлянда над всеми экранами, но под просмотром расписания на весь экран.
+            if (newYear != null && !viewerVisible) Garland(newYear)
 
             // BackHandler вынесен наружу: срабатывает только когда вьюер видим.
             BackHandler(enabled = viewerVisible) { viewerVisible = false }

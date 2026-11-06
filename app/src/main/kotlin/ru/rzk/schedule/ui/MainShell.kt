@@ -36,6 +36,9 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import ru.rzk.schedule.ui.theme.NewYearTree
+import ru.rzk.schedule.ui.theme.LocalNewYear
 import androidx.compose.ui.unit.dp
 import ru.rzk.schedule.ui.theme.snowCap
 import androidx.compose.ui.zIndex
@@ -181,6 +184,14 @@ fun MainShell(
                             onOpenSettings = onOpenSettings,
                         )
                     }
+                }
+
+                // Новогодняя ёлка в правом нижнем углу над панелью вкладок: её можно трогать (ветки, шары, звезда).
+                LocalNewYear.current?.let { newYear ->
+                    NewYearTree(
+                        newYear,
+                        Modifier.align(Alignment.BottomEnd).padding(end = 10.dp, bottom = 6.dp).zIndex(2f),
+                    )
                 }
             }
         }

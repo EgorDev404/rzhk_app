@@ -49,6 +49,8 @@ import androidx.compose.runtime.Composable
 import ru.rzk.schedule.ui.theme.snowCap
 import ru.rzk.schedule.ui.theme.icicles
 import ru.rzk.schedule.ui.theme.LocalWinter
+import ru.rzk.schedule.ui.theme.candyCanes
+import ru.rzk.schedule.ui.theme.LocalNewYear
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -221,7 +223,14 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             // Зимой над карточкой лежат мини-сугробы: им нужно место сверху.
-            .then(if (LocalWinter.current != null) Modifier.padding(top = 12.dp) else Modifier)
+            .then(
+                when {
+                    LocalNewYear.current != null -> Modifier.padding(top = 34.dp) // место для леденцовых тростей
+                    LocalWinter.current != null -> Modifier.padding(top = 12.dp)
+                    else -> Modifier
+                },
+            )
+            .candyCanes() // раньше сугроба: основания тростей утопают в снегу
             .snowCap(seed = file.name.hashCode())
             .icicles(seed = file.name.hashCode() * 31 + 7)
             .clickable(

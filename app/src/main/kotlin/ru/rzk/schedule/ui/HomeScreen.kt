@@ -36,6 +36,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import ru.rzk.schedule.ui.theme.NewYearCountdown
+import ru.rzk.schedule.ui.theme.LocalNewYear
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -146,7 +148,11 @@ fun HomeScreen(
                 )
             } else {
                 LargeTopAppBar(
-                    title = { LaunchHighlightTitle("Расписание") },
+                    title = {
+                        // Подсветка заголовка стартует, когда расписание на сегодня загрузилось.
+                        val loaded = states[days.first()]?.content?.let { it !is DayContent.Loading } ?: false
+                        LaunchHighlightTitle("Расписание", ready = loaded)
+                    },
                     actions = barActions,
                     scrollBehavior = scrollBehavior,
                     colors = TopAppBarDefaults.largeTopAppBarColors(
@@ -166,6 +172,10 @@ fun HomeScreen(
                     selected = pagerState.targetPage,
                     onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
                 )
+                // Новогодний счётчик дней под переключателем дней.
+                if (LocalNewYear.current != null) {
+                    NewYearCountdown(Modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp))
+                }
             }
             HorizontalPager(
                 state = pagerState,
