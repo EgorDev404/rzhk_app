@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,6 +36,7 @@ import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -54,10 +56,30 @@ object Winter {
         settings.winter && (settings.devWinter || isSeason(today)) && !NewYear.isSeason(today) && !settings.devNewYear
 }
 
-/** Общее состояние зимы: сколько снега успело скопиться на карточках (0..1). */
+/** Общее состояние зимы: сколько снега успело скопиться на карточках (0..1) и стряхнутые карточки. */
 @Stable
 class WinterState(val reduceMotion: Boolean) {
     var depth: Float by mutableStateOf(if (reduceMotion) 1f else 0f)
+
+    private val shookBase = mutableStateMapOf<Int, Float>()
+
+    /** Стряхнуть снег и сосульки с карточки [seed]: сугроб обваливается, а потом постепенно наметает заново. */
+    fun shakeOff(seed: Int) {
+        shookBase[seed] = depth
+    }
+
+    /** Сколько снега лежит на конкретной карточке [seed] прямо сейчас (0..1). */
+    fun cardDepth(seed: Int): Float {
+        val base = shookBase[seed] ?: return depth
+        return (depth - base).coerceAtLeast(0f)
+    }
+
+    /** Полностью ли обвалился сугроб на карточке [seed] (чтобы снова наметать, когда она стоит на месте). */
+    fun growOnCard(seed: Int, delta: Float) {
+        val base = shookBase[seed] ?: return
+        val next = (base - delta).coerceAtLeast(0f)
+        if (next <= 0.001f) shookBase.remove(seed) else shookBase[seed] = next
+    }
 }
 
 /** null — зимнего оформления сейчас нет. */
@@ -222,21 +244,27 @@ private class SnowField(private val density: Float) {
  * поэтому над ней нужен небольшой отступ (см. [maxHeight]).
  */
 @Composable
-fun Modifier.snowCap(seed: Int, cornerRadius: Dp = 24.dp, maxHeight: Dp = 12.dp): Modifier {
+fun Modifier.snowCap(
+    seed: Int,
+    cornerRadius: Dp = 24.dp,
+    maxHeight: Dp = 12.dp,
+    visible: Boolean = true,
+): Modifier {
     val winter = LocalWinter.current ?: return this
+    if (!visible) return this
     val onDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val fill = if (onDark) Color(0xFFF2F8FF) else Color(0xFFFAFDFF)
     // На светлом фоне белому сугробу нужен голубоватый контур.
     val edge = if (onDark) Color(0x40FFFFFF) else Color(0x883F7FBF)
     val shape = remember(seed) { DriftShape(seed) }
     return this.drawBehind {
-        val depth = winter.depth
+        val depth = winter.cardDepth(seed)
         if (depth > 0.01f) drawDrift(shape, depth, cornerRadius.toPx(), maxHeight.toPx(), fill, edge)
     }
 }
 
 /** Случайный, но стабильный для данной карточки профиль сугробов: несколько «холмиков» разной ширины. */
-private class DriftShape(seed: Int) {
+internal class DriftShape(seed: Int) {
     private val centers: FloatArray
     private val widths: FloatArray
     private val heights: FloatArray
@@ -266,7 +294,7 @@ private class DriftShape(seed: Int) {
     fun height(u: Float): Float = 0.32f + 0.68f * min(1f, raw(u) / peak)
 }
 
-private fun smooth(t: Float): Float {
+internal fun smooth(t: Float): Float {
     val x = t.coerceIn(0f, 1f)
     return x * x * (3f - 2f * x)
 }
@@ -310,7 +338,7 @@ private fun DrawScope.drawDrift(
 }
 
 /** Где проходит верхний край карточки с закруглёнными углами радиуса [r] на расстоянии [x] от левого края. */
-private fun cardEdgeY(x: Float, w: Float, r: Float): Float {
+internal fun cardEdgeY(x: Float, w: Float, r: Float): Float {
     val d = when {
         x < r -> r - x
         x > w - r -> x - (w - r)
@@ -424,13 +452,19 @@ fun FrostCorners(winter: WinterState) {
  * Рисуются под краем карточки (за ней), поэтому сразу под карточкой нужен небольшой зазор.
  */
 @Composable
-fun Modifier.icicles(seed: Int, cornerRadius: Dp = 24.dp, maxLength: Dp = 11.dp): Modifier {
+fun Modifier.icicles(
+    seed: Int,
+    cornerRadius: Dp = 24.dp,
+    maxLength: Dp = 11.dp,
+    visible: Boolean = true,
+): Modifier {
     val winter = LocalWinter.current ?: return this
+    if (!visible) return this
     val onDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val body = if (onDark) Color(0xB8CFE8FF) else Color(0xCCB3D6F6)
     val shine = Color(0xB3FFFFFF)
     return this.drawBehind {
-        val depth = winter.depth
+        val depth = winter.cardDepth(seed)
         if (depth > 0.15f) drawIcicles(seed, depth, cornerRadius.toPx(), maxLength.toPx(), body, shine)
     }
 }

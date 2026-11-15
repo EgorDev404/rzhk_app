@@ -77,7 +77,7 @@ import kotlin.random.Random
  * Сезон: с 20 декабря по 9 января.
  */
 object NewYear {
-    fun isSeason(date: LocalDate): Boolean =
+    fun isSeason(date: LocalDate = Dates.today()): Boolean =
         (date.monthValue == 12 && date.dayOfMonth >= 20) || (date.monthValue == 1 && date.dayOfMonth <= 9)
 
     /** Пользователь может отключить оформление переключателем; разработчик может показывать его независимо от даты. */
@@ -213,8 +213,9 @@ private fun DrawScope.drawBulb(x: Float, y: Float, color: Color, level: Float) {
  * Над карточкой нужен отступ около 34 dp.
  */
 @Composable
-fun Modifier.candyCanes(): Modifier {
+fun Modifier.candyCanes(visible: Boolean = true): Modifier {
     LocalNewYear.current ?: return this
+    if (!visible) return this
     return this.drawBehind {
         val inset = 46.dp.toPx()
         drawCane(baseX = inset, hookToRight = true, tilt = -8f)
@@ -222,7 +223,8 @@ fun Modifier.candyCanes(): Modifier {
     }
 }
 
-private fun DrawScope.drawCane(baseX: Float, hookToRight: Boolean, tilt: Float) {
+internal fun DrawScope.drawCane(baseX: Float, hookToRight: Boolean, tilt: Float, topY: Float = 0f, alpha: Float = 1f) {
+    if (alpha <= 0.01f) return
     val d = density
     val thickness = 7f * d
     val shaft = 20f * d
@@ -242,12 +244,12 @@ private fun DrawScope.drawCane(baseX: Float, hookToRight: Boolean, tilt: Float) 
     }
 
     withTransform({
-        translate(left = baseX, top = 0f)
+        translate(left = baseX, top = topY)
         rotate(degrees = tilt, pivot = Offset(0f, 4f * d))
     }) {
         // Контур, белая основа, красные косые полосы, блик.
-        drawPath(path, Color(0x40455A64), style = Stroke(width = thickness + 2f * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawPath(path, Color(0xFFFAFAFA), style = Stroke(width = thickness, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(path, Color(0x40455A64).copy(alpha = 0.25f * alpha), style = Stroke(width = thickness + 2f * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(path, Color(0xFFFAFAFA).copy(alpha = alpha), style = Stroke(width = thickness, cap = StrokeCap.Round, join = StrokeJoin.Round))
 
         val measure = PathMeasure()
         measure.setPath(path, false)
@@ -271,11 +273,11 @@ private fun DrawScope.drawCane(baseX: Float, hookToRight: Boolean, tilt: Float) 
                 lineTo(p0.x - n0.x + t0.x * lean, p0.y - n0.y + t0.y * lean)
                 close()
             }
-            drawPath(stripePath, Color(0xFFD32F2F))
+            drawPath(stripePath, Color(0xFFD32F2F).copy(alpha = alpha))
             s += period
         }
         translate(left = -thickness * 0.22f) {
-            drawPath(path, Color.White.copy(alpha = 0.45f), style = Stroke(width = 1.3f * d, cap = StrokeCap.Round))
+            drawPath(path, Color.White.copy(alpha = 0.45f * alpha), style = Stroke(width = 1.3f * d, cap = StrokeCap.Round))
         }
     }
 }

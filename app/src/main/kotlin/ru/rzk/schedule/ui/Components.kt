@@ -55,6 +55,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -219,12 +220,28 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
     )
     val ratio = image?.let { it.width.toFloat() / it.height } ?: PAGE_RATIO
 
-    // Щипок двумя пальцами «отрывает» картинку от карточки (см. PinchZoom.kt); пока она летает, в карточке её не видно.
-    // В горизонтальной ориентации картинку увеличивать щипком нельзя: там можно открыть её на весь экран нажатием.
+    // Щипок двумя пальцами «отрывает» картинку от карточки (см. PinchZoom.kt); пока она летает, в карточке её не видно,
+    // а сугроб, сосульки и леденцы осыпаются вниз!
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val pinch = if (landscape) null else LocalPinchZoom.current
     val detached = pinch != null && pinch.owner == file
     val cornerPx = with(LocalDensity.current) { 24.dp.toPx() }
+    val seed = remember(file) { file.name.hashCode() }
+    val winter = LocalWinter.current
+
+    // Когда карточку вернули на место после щипка, на неё снова постепенно наметает снег.
+    if (winter != null && !winter.reduceMotion && !detached) {
+        LaunchedEffect(winter, seed, detached) {
+            var last = 0L
+            while (winter.cardDepth(seed) < winter.depth - 0.005f) {
+                withFrameNanos { now ->
+                    val dt = if (last == 0L) 0f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
+                    last = now
+                    winter.growOnCard(seed, dt / 18f)
+                }
+            }
+        }
+    }
 
     // Нажимная подсветка отключена: карточка занимает почти весь экран, и при начале свайпа по ней
     // на долю секунды вспыхивал серый слой. Нажатие по-прежнему открывает просмотр на весь экран.
@@ -236,13 +253,13 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
             .then(
                 when {
                     LocalNewYear.current != null -> Modifier.padding(top = 34.dp) // место для леденцовых тростей
-                    LocalWinter.current != null -> Modifier.padding(top = 12.dp)
+                    winter != null -> Modifier.padding(top = 12.dp)
                     else -> Modifier
                 },
             )
-            .candyCanes() // раньше сугроба: основания тростей утопают в снегу
-            .snowCap(seed = file.name.hashCode())
-            .icicles(seed = file.name.hashCode() * 31 + 7)
+            .candyCanes(visible = !detached) // раньше сугроба: основания тростей утопают в снегу
+            .snowCap(seed = seed, visible = !detached)
+            .icicles(seed = seed, visible = !detached)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -255,6 +272,7 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
                     Modifier.pinchPeek(
                         state = pinch,
                         owner = file,
+                        seed = seed,
                         cornerRadiusPx = cornerPx,
                         bitmap = { image },
                         loadSharp = { PageImageCache.load(file, PageImageCache.SAMPLE_BIG) },
