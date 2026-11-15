@@ -2,7 +2,6 @@ package ru.rzk.schedule.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,9 +26,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -101,6 +100,10 @@ fun ViewerScreen(request: ViewerRequest, onClose: () -> Unit) {
             userScrollEnabled = !zoomed,
             modifier = Modifier.fillMaxSize(),
             beyondViewportPageCount = 1,
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = pagerState,
+                snapAnimationSpec = Motion.iosSpring(stiffness = 400f),
+            ),
         ) { page ->
             ZoomableImage(
                 file = request.pages[page],
@@ -166,9 +169,13 @@ fun ViewerScreen(request: ViewerRequest, onClose: () -> Unit) {
 
 @Composable
 private fun ZoomableImage(file: File, onZoomChanged: (Boolean) -> Unit, onTap: () -> Unit) {
-    // SAMPLE_BIG = 1 — полное разрешение JPEG (1500px). При зуме до 2.5x картинка остаётся резкой.
-    val image by produceState<ImageBitmap?>(initialValue = null, file) {
-        value = PageImageCache.load(file, PageImageCache.SAMPLE_BIG)
+    // Сначала мгновенно показываем уменьшенную копию из памяти (если есть), и сразу подгружаем полные 1500px.
+    val initial = remember(file) {
+        PageImageCache.peek(file, PageImageCache.SAMPLE_BIG) ?: PageImageCache.peek(file, PageImageCache.SAMPLE_SMALL)
+    }
+    val image by produceState<ImageBitmap?>(initialValue = initial, file) {
+        val sharp = PageImageCache.load(file, PageImageCache.SAMPLE_BIG)
+        if (sharp != null) value = sharp
     }
 
     var scale by remember { mutableFloatStateOf(1f) }
@@ -216,10 +223,11 @@ private fun ZoomableImage(file: File, onZoomChanged: (Boolean) -> Unit, onTap: (
                                 targetX = clampX((box.width / 2f - tap.x) * (targetScale - 1f), targetScale)
                                 targetY = clampY((box.height / 2f - tap.y) * (targetScale - 1f), targetScale)
                             }
+                            val spec = Motion.iosSpring<Float>(stiffness = 440f)
                             animScale.snapTo(scale); animX.snapTo(offsetX); animY.snapTo(offsetY)
-                            launch { animScale.animateTo(targetScale, tween(320, easing = FastOutSlowInEasing)) }
-                            launch { animX.animateTo(targetX, tween(320, easing = FastOutSlowInEasing)) }
-                            launch { animY.animateTo(targetY, tween(320, easing = FastOutSlowInEasing)) }
+                            launch { animScale.animateTo(targetScale, spec) }
+                            launch { animX.animateTo(targetX, spec) }
+                            launch { animY.animateTo(targetY, spec) }
                             scale = targetScale; offsetX = targetX; offsetY = targetY
                             onZoomChanged(targetScale > 1.01f)
                         }

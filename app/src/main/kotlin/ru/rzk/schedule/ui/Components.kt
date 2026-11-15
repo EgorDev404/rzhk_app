@@ -128,6 +128,9 @@ object PageImageCache {
 
     private fun key(path: String, sample: Int) = "$sample:$path"
 
+    /** Мгновенное получение картинки из памяти, если она уже декодирована (без мигания скелетона). */
+    fun peek(file: File, sample: Int): ImageBitmap? = cache.get(key(file.path, sample))
+
     suspend fun load(file: File, sample: Int): ImageBitmap? {
         val k = key(file.path, sample)
         cache.get(k)?.let { return it }
@@ -158,7 +161,7 @@ fun LoadingPlaceholder(stage: LoadStage) {
             AnimatedContent(
                 targetState = stage,
                 transitionSpec = {
-                    (fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 2 }) togetherWith fadeOut(tween(140))
+                    (fadeIn(tween(220)) + slideInVertically(Motion.iosSpring()) { it / 2 }) togetherWith fadeOut(tween(120))
                 },
                 label = "stage",
             ) { current ->
@@ -203,10 +206,17 @@ private fun PulsingDot() {
 /** Карточка с превью расписания. Пропорции берутся из реальной картинки, поэтому высота — как у PDF. */
 @Composable
 fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
-    val image by produceState<ImageBitmap?>(initialValue = null, file) {
-        value = PageImageCache.load(file, PageImageCache.SAMPLE_SMALL)
+    // Если картинка уже в памяти (прогрета при старте или уже открывалась), берём её сразу в initialValue —
+    // без лишнего кадра со скелетоном и без задержки fade-анимации.
+    val cachedBitmap = remember(file) { PageImageCache.peek(file, PageImageCache.SAMPLE_SMALL) }
+    val image by produceState<ImageBitmap?>(initialValue = cachedBitmap, file) {
+        if (value == null) value = PageImageCache.load(file, PageImageCache.SAMPLE_SMALL)
     }
-    val imageAlpha by animateFloatAsState(if (image != null) 1f else 0f, tween(450), label = "imageAlpha")
+    val imageAlpha by animateFloatAsState(
+        targetValue = if (image != null) 1f else 0f,
+        animationSpec = if (cachedBitmap != null) tween(0) else tween(260),
+        label = "imageAlpha",
+    )
     val ratio = image?.let { it.width.toFloat() / it.height } ?: PAGE_RATIO
 
     // Щипок двумя пальцами «отрывает» картинку от карточки (см. PinchZoom.kt); пока она летает, в карточке её не видно.
@@ -240,7 +250,7 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
             ),
     ) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(ratio).animateContentSize().then(
+            Modifier.fillMaxWidth().aspectRatio(ratio).animateContentSize(Motion.iosSpring()).then(
                 if (pinch != null) {
                     Modifier.pinchPeek(
                         state = pinch,
@@ -276,9 +286,9 @@ fun StatusState(
     modifier: Modifier = Modifier,
     actions: @Composable ColumnScope.() -> Unit = {},
 ) {
-    val scale = remember { Animatable(0.6f) }
+    val scale = remember { Animatable(0.82f) }
     LaunchedEffect(Unit) {
-        scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+        scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
     }
     val compact = isCompactHeight()
     val badge: @Composable () -> Unit = {

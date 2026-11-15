@@ -3,6 +3,7 @@ package ru.rzk.schedule.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ru.rzk.schedule.ScheduleApp
 import ru.rzk.schedule.data.Dates
 import ru.rzk.schedule.data.FailureKind
@@ -71,8 +73,8 @@ internal fun upcomingDays(today: LocalDate, custom: LocalDate?): List<LocalDate>
     }
 }
 
-class HomeViewModel(app: ScheduleApp) : ViewModel() {
-    private val repository = app.repository
+class HomeViewModel(private val app: ScheduleApp) : ViewModel() {
+    private val repository get() = app.repository
 
     private val today = MutableStateFlow(Dates.today())
     private val custom = MutableStateFlow<LocalDate?>(null)
@@ -93,6 +95,28 @@ class HomeViewModel(app: ScheduleApp) : ViewModel() {
     val events: SharedFlow<UiEvent> = _events.asSharedFlow()
 
     private val jobs = HashMap<LocalDate, Job>() // только из главного потока
+
+    init {
+        // Предварительно подгружаем сохранённые на диске страницы и прогреваем битмапы в фоновом потоке,
+        // чтобы на первом же кадре после сплеша расписание появилось мгновенно без мерцания скелетона.
+        viewModelScope.launch(Dispatchers.IO) {
+            val initialDays = days.value
+            initialDays.forEachIndexed { index, day ->
+                val cached = repository.cachedPagesSync(day)
+                if (cached != null) {
+                    val (pages, sha, checkedAt) = cached
+                    if (index == 0) {
+                        pages.firstOrNull()?.let { PageImageCache.load(it, PageImageCache.SAMPLE_SMALL) }
+                    }
+                    withContext(Dispatchers.Main.immediate) {
+                        if (_states.value[day]?.content !is DayContent.Ready) {
+                            setContent(day, DayContent.Ready(pages, sha, checkedAt, stale = false))
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     /** Вызывается при каждом возвращении в приложение: дата могла смениться, расписание — обновиться. */
     fun onResume() {
@@ -127,7 +151,7 @@ class HomeViewModel(app: ScheduleApp) : ViewModel() {
             val self = coroutineContext[Job]
             try {
                 val shown = _states.value[day]?.content
-                val cached = repository.cached(day)
+                val cached = withContext(Dispatchers.IO) { repository.cached(day) }
 
                 // 1. Мгновенно показываем то, что уже лежит на диске, — без пустого экрана.
                 if (shown !is DayContent.Ready) {
@@ -179,6 +203,10 @@ class HomeViewModel(app: ScheduleApp) : ViewModel() {
         if (pages.isEmpty()) {
             setContent(day, DayContent.Failed(FailureKind.BadFile))
             return
+        }
+        // Заранее декодируем первую страницу в кэш на фоновом потоке, чтобы карточка открылась сразу с картинкой.
+        withContext(Dispatchers.IO) {
+            pages.firstOrNull()?.let { PageImageCache.load(it, PageImageCache.SAMPLE_SMALL) }
         }
         setContent(day, DayContent.Ready(pages, snapshot.sha256, snapshot.checkedAt, stale))
     }

@@ -48,8 +48,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import ru.rzk.schedule.app
 import ru.rzk.schedule.data.Dates
 import ru.rzk.schedule.ui.theme.NightMode
@@ -67,9 +69,16 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     var viewer by remember { mutableStateOf<ViewerRequest?>(null) }
     var viewerVisible by remember { mutableStateOf(false) }
 
-    // Расписание фоновых проверок следует за настройками.
+    // Расписание фоновых проверок следует за настройками; не запускаем на первом кадре (App.onCreate уже запланирует).
+    var initialSyncSkipped by remember { mutableStateOf(false) }
     LaunchedEffect(settings.notifications, settings.devMode) {
-        WorkScheduler.apply(context, settings)
+        if (!initialSyncSkipped) {
+            initialSyncSkipped = true
+            return@LaunchedEffect
+        }
+        withContext(Dispatchers.IO) {
+            WorkScheduler.apply(context, settings)
+        }
     }
 
     // Приветственная плашка: показываем один раз. Считаем её показанной сразу, как только она появилась,
@@ -133,24 +142,25 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
             LocalNewYear provides newYear,
         ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            // Главный экран не уничтожается, когда открыты настройки: он остаётся собранным под ними. Раньше при каждом
-            // открытии и закрытии настроек он собирался заново, отсюда и «задумчивость» на первых кадрах анимации.
+            // Переход «главный экран ↔ настройки» на пружинной физике iOS: мгновенно откликается и можно
+            // развернуть прямо на полпути жестом «Назад» без резкого рывка.
             val settingsProgress = animateFloatAsState(
                 targetValue = if (showSettings) 1f else 0f,
-                animationSpec = tween(
-                    durationMillis = if (showSettings) 360 else 280,
-                    easing = if (showSettings) Motion.EmphasizedDecelerate else Motion.EmphasizedAccelerate,
-                ),
+                animationSpec = Motion.iosSpring(stiffness = 420f),
                 label = "settings",
             )
             // Пока настройки на экране или уезжают, показываем их; значение читается так, чтобы не пересобирать экран на каждом кадре.
             val settingsVisible by remember { derivedStateOf { showSettings || settingsProgress.value > 0.001f } }
 
             Box(Modifier.fillMaxSize()) {
-                // Главный экран слегка уезжает влево и затемняется (параллакс), настройки наезжают справа.
+                // Главный экран слегка уезжает влево и затемняется (параллакс iOS UINavigationController), настройки наезжают справа.
                 Box(
                     Modifier.fillMaxSize().graphicsLayer {
-                        translationX = -size.width * 0.2f * settingsProgress.value
+                        val p = settingsProgress.value
+                        translationX = -size.width * 0.24f * p
+                        val s = 1f - 0.02f * p
+                        scaleX = s
+                        scaleY = s
                     },
                 ) {
                     MainShell(
@@ -170,7 +180,7 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                         Box(
                             Modifier
                                 .fillMaxSize()
-                                .graphicsLayer { alpha = 0.18f * settingsProgress.value }
+                                .graphicsLayer { alpha = 0.22f * settingsProgress.value }
                                 .background(Color.Black)
                                 // Пока открыты настройки, главный экран под ними не должен реагировать на касания.
                                 .pointerInput(Unit) {
@@ -182,7 +192,12 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                     }
                 }
                 if (settingsVisible) {
-                    Box(Modifier.fillMaxSize().graphicsLayer { translationX = size.width * (1f - settingsProgress.value) }) {
+                    Box(
+                        Modifier.fillMaxSize().graphicsLayer {
+                            translationX = size.width * (1f - settingsProgress.value)
+                            shadowElevation = 24f * settingsProgress.value * (1f - settingsProgress.value) * 4f
+                        },
+                    ) {
                         BackHandler(enabled = showSettings) { showSettings = false }
                         SettingsScreen(
                             settings = settings,
@@ -200,8 +215,8 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
             viewer?.let { request ->
                 AnimatedVisibility(
                     visible = viewerVisible,
-                    enter = fadeIn(tween(220)) + scaleIn(tween(260), initialScale = 0.92f),
-                    exit = fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 0.92f),
+                    enter = fadeIn(tween(180)) + scaleIn(Motion.iosSpring(stiffness = 460f), initialScale = 0.92f),
+                    exit = fadeOut(tween(150)) + scaleOut(Motion.iosSpring(stiffness = 500f), targetScale = 0.92f),
                 ) {
                     ViewerScreen(request = request, onClose = { viewerVisible = false })
                 }

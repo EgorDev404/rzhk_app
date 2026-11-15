@@ -30,19 +30,33 @@ object WidgetColors {
         val onSurfaceVariant: Int,
     )
 
-    fun save(context: Context, scheme: ColorScheme) {
+    /** Сохраняет цвета и возвращает true, если хотя бы один цвет изменился (чтобы не дёргать AppWidgetManager зря). */
+    fun save(context: Context, scheme: ColorScheme): Boolean {
+        val next = Snapshot(
+            primaryContainer = scheme.primaryContainer.toArgb(),
+            onPrimaryContainer = scheme.onPrimaryContainer.toArgb(),
+            tertiaryContainer = scheme.tertiaryContainer.toArgb(),
+            onTertiaryContainer = scheme.onTertiaryContainer.toArgb(),
+            secondaryContainer = scheme.secondaryContainer.toArgb(),
+            onSecondaryContainer = scheme.onSecondaryContainer.toArgb(),
+            surfaceContainerHigh = scheme.surfaceContainerHigh.toArgb(),
+            onSurface = scheme.onSurface.toArgb(),
+            onSurfaceVariant = scheme.onSurfaceVariant.toArgb(),
+        )
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.contains(K_PRIMARY_CONTAINER) && load(context) == next) return false
         prefs.edit()
-            .putInt(K_PRIMARY_CONTAINER, scheme.primaryContainer.toArgb())
-            .putInt(K_ON_PRIMARY_CONTAINER, scheme.onPrimaryContainer.toArgb())
-            .putInt(K_TERTIARY_CONTAINER, scheme.tertiaryContainer.toArgb())
-            .putInt(K_ON_TERTIARY_CONTAINER, scheme.onTertiaryContainer.toArgb())
-            .putInt(K_SECONDARY_CONTAINER, scheme.secondaryContainer.toArgb())
-            .putInt(K_ON_SECONDARY_CONTAINER, scheme.onSecondaryContainer.toArgb())
-            .putInt(K_SURFACE_CONTAINER_HIGH, scheme.surfaceContainerHigh.toArgb())
-            .putInt(K_ON_SURFACE, scheme.onSurface.toArgb())
-            .putInt(K_ON_SURFACE_VARIANT, scheme.onSurfaceVariant.toArgb())
+            .putInt(K_PRIMARY_CONTAINER, next.primaryContainer)
+            .putInt(K_ON_PRIMARY_CONTAINER, next.onPrimaryContainer)
+            .putInt(K_TERTIARY_CONTAINER, next.tertiaryContainer)
+            .putInt(K_ON_TERTIARY_CONTAINER, next.onTertiaryContainer)
+            .putInt(K_SECONDARY_CONTAINER, next.secondaryContainer)
+            .putInt(K_ON_SECONDARY_CONTAINER, next.onSecondaryContainer)
+            .putInt(K_SURFACE_CONTAINER_HIGH, next.surfaceContainerHigh)
+            .putInt(K_ON_SURFACE, next.onSurface)
+            .putInt(K_ON_SURFACE_VARIANT, next.onSurfaceVariant)
             .apply()
+        return true
     }
 
     fun load(context: Context): Snapshot {

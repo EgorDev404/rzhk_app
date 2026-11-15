@@ -17,12 +17,14 @@ object NightMode {
     fun apply(context: Context, mode: ThemeMode) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
         val manager = context.getSystemService(UiModeManager::class.java) ?: return
-        manager.setApplicationNightMode(
-            when (mode) {
-                ThemeMode.System -> UiModeManager.MODE_NIGHT_AUTO
-                ThemeMode.Light -> UiModeManager.MODE_NIGHT_NO
-                ThemeMode.Dark -> UiModeManager.MODE_NIGHT_YES
-            },
-        )
+        val target = when (mode) {
+            ThemeMode.System -> UiModeManager.MODE_NIGHT_AUTO
+            ThemeMode.Light -> UiModeManager.MODE_NIGHT_NO
+            ThemeMode.Dark -> UiModeManager.MODE_NIGHT_YES
+        }
+        val prefs = context.applicationContext.getSharedPreferences("ui_state", Context.MODE_PRIVATE)
+        if (prefs.getInt("applied_night_mode", -999) == target) return
+        prefs.edit().putInt("applied_night_mode", target).apply()
+        manager.setApplicationNightMode(target)
     }
 }

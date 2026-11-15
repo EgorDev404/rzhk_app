@@ -1,13 +1,6 @@
 package ru.rzk.schedule.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,18 +36,16 @@ import androidx.compose.ui.unit.dp
 import ru.rzk.schedule.ui.theme.snowCap
 import androidx.compose.ui.zIndex
 import androidx.compose.runtime.remember
-import kotlinx.coroutines.delay
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -153,17 +144,19 @@ fun MainShell(
                         } else Modifier,
                     ),
             ) {
-                // Обе вкладки собраны заранее и лежат друг на друге: переключение только плавно меняет прозрачность и
-                // масштаб слоёв (без пересборки экранов), поэтому нет «заторможенности» даже на 144 Гц.
+                // Обе вкладки собраны заранее и лежат друг на друге: переключение на пружинной физике iOS
+                // мгновенно откликается и не пересобирает экраны (120/144 Гц без рывков).
                 val tabProgress = animateFloatAsState(
                     targetValue = if (tab == 0) 0f else 1f,
-                    animationSpec = tween(300, easing = LinearEasing),
+                    animationSpec = Motion.iosSnappySpring(),
                     label = "tab",
                 )
-                // «Звонки» собираем не на старте (чтобы не тормозить запуск), а чуть позже, когда главный экран уже виден.
+                // «Звонки» собираем сразу на следующем кадре после показа главного экрана, чтобы при тапе по вкладке
+                // она открылась мгновенно без ожидания.
                 var bellsReady by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) {
-                    delay(1200)
+                    withFrameNanos { }
+                    withFrameNanos { }
                     bellsReady = true
                 }
 
@@ -199,27 +192,21 @@ fun MainShell(
 }
 
 /**
- * Слой вкладки. Показываемая вкладка появляется чуть позже, чем гаснет предыдущая, и слегка «вырастает»
- * (приём Material «fade through»). Скрытая вкладка не принимает касаний и не видна для экранных помощников.
+ * Слой вкладки. Плавное наложение с лёгким масштабированием (как в iOS): обе вкладки остаются видимыми в момент
+ * перехода, поэтому нет пустого провала яркости посередине анимации.
  */
 @Composable
 private fun TabLayer(fraction: () -> Float, active: Boolean, content: @Composable () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
-            // Показываемая вкладка всегда сверху, в том числе для касаний: иначе невидимая вкладка, лежащая выше,
-            // перехватывала бы нажатия и экран под ней «не работал».
             .zIndex(if (active) 1f else 0f)
             .graphicsLayer {
-                val f = fraction()
-                if (active) {
-                    alpha = ((f - 0.3f) / 0.7f).coerceIn(0f, 1f)
-                    val scale = 0.95f + 0.05f * f
-                    scaleX = scale
-                    scaleY = scale
-                } else {
-                    alpha = ((f - 0.7f) / 0.3f).coerceIn(0f, 1f)
-                }
+                val f = fraction().coerceIn(0f, 1f)
+                alpha = f
+                val scale = 0.97f + 0.03f * f
+                scaleX = scale
+                scaleY = scale
             }
             .then(
                 if (active) {

@@ -1,9 +1,7 @@
 package ru.rzk.schedule.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -51,10 +49,10 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * «Отслоение» фото щипком двумя пальцами, как в Telegram.
+ * «Отслоение» фото щипком двумя пальцами, как в Telegram / iOS Photos.
  *
  * Пока два пальца на карточке, картинка отрывается от неё и летает поверх всего интерфейса: следует за пальцами
- * и увеличивается. Фон затемняется. Стоит отпустить хотя бы один палец, как картинка плавно возвращается на место.
+ * и увеличивается. Фон затемняется. Стоит отпустить хотя бы один палец, как картинка на пружине возвращается на место.
  * Обычные нажатие (открыть на весь экран) и прокрутка одним пальцем работают как раньше.
  */
 val LocalPinchZoom = staticCompositionLocalOf<PinchZoomState?> { null }
@@ -130,7 +128,7 @@ class PinchZoomState(private val scope: CoroutineScope) {
         scale = target
     }
 
-    /** Плавно возвращает картинку на место и убирает её из оверлея. */
+    /** На пружине возвращает картинку на место и убирает её из оверлея. */
     fun release() {
         if (owner == null) return
         holding = false
@@ -138,7 +136,7 @@ class PinchZoomState(private val scope: CoroutineScope) {
         val startScale = scale
         val startOffset = offset
         releasing = scope.launch {
-            animate(0f, 1f, animationSpec = tween(300, easing = FastOutSlowInEasing)) { t, _ ->
+            animate(0f, 1f, animationSpec = Motion.iosSpring(stiffness = 460f)) { t, _ ->
                 scale = startScale + (1f - startScale) * t
                 offset = startOffset * (1f - t)
             }

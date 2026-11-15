@@ -22,6 +22,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import ru.rzk.schedule.data.DEFAULT_SEED_COLOR
 import ru.rzk.schedule.data.Settings
 import ru.rzk.schedule.data.ThemeMode
@@ -124,10 +126,13 @@ fun ScheduleTheme(
         controller.isAppearanceLightNavigationBars = navBarOverLight || !iconsOnDark
     }
 
-    // Сохраняем цвета для виджета и сразу просим его перерисоваться.
+    // Сохраняем цвета для виджета на фоновом потоке и просим его перерисоваться только если цвета реально изменились.
     LaunchedEffect(colors) {
-        WidgetColors.save(context, colors)
-        BellsWidgetUpdater.refreshAll(context)
+        withContext(Dispatchers.IO) {
+            if (WidgetColors.save(context, colors)) {
+                BellsWidgetUpdater.refreshAll(context)
+            }
+        }
     }
 
     MaterialTheme(colorScheme = colors, typography = AppTypography, shapes = AppShapes, content = content)

@@ -23,8 +23,18 @@ object PdfPages {
     private const val TARGET_WIDTH = 1500
     private const val JPEG_QUALITY = 92
 
+    /** Возвращает уже готовые JPEG-страницы без захвата мьютекса, если рендер завершён ранее. */
+    fun cachedPages(outDir: File): List<File> {
+        val marker = File(outDir, ".done")
+        return if (marker.exists()) listPages(outDir) else emptyList()
+    }
+
     suspend fun render(pdf: File, outDir: File, targetWidth: Int = TARGET_WIDTH, maxPages: Int = 10): List<File> =
         withContext(Dispatchers.IO) {
+            // Быстрый путь без мьютекса: если страницы уже готовы, сразу отдаём их.
+            val fast = cachedPages(outDir)
+            if (fast.isNotEmpty()) return@withContext fast
+
             lock.withLock {
                 val marker = File(outDir, ".done")
                 if (marker.exists()) return@withLock listPages(outDir)

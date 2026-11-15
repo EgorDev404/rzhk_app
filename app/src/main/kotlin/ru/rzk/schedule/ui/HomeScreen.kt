@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -103,7 +104,7 @@ fun HomeScreen(
         val day = pending ?: return@LaunchedEffect
         val index = days.indexOf(day)
         if (index >= 0) {
-            pagerState.animateScrollToPage(index)
+            pagerState.animateScrollToPage(index, animationSpec = Motion.iosSpring())
             vm.consumePendingDay()
         }
     }
@@ -156,6 +157,7 @@ fun HomeScreen(
                         MaterialTheme.colorScheme.surfaceContainer,
                         fraction,
                     ),
+                    animationSpec = Motion.iosSpring(),
                     label = "topBarBg",
                 )
                 // Фон шапки лежит под снегом и гирляндой, а сам TopAppBar с заголовком и кнопками — поверх них (zIndex = 2f).
@@ -170,7 +172,9 @@ fun HomeScreen(
                                         days = days,
                                         states = states,
                                         selected = pagerState.targetPage,
-                                        onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                                        onSelect = { index ->
+                                            scope.launch { pagerState.animateScrollToPage(index, animationSpec = Motion.iosSpring()) }
+                                        },
                                         compact = true,
                                     )
                                 },
@@ -207,7 +211,9 @@ fun HomeScreen(
                         days = days,
                         states = states,
                         selected = pagerState.targetPage,
-                        onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                        onSelect = { index ->
+                            scope.launch { pagerState.animateScrollToPage(index, animationSpec = Motion.iosSpring()) }
+                        },
                     )
                     // Новогодний счётчик дней под переключателем дней.
                     if (LocalNewYear.current != null) {
@@ -219,6 +225,10 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize(),
                     key = { index -> days.getOrNull(index)?.toString() ?: index.toString() },
                     beyondViewportPageCount = 1,
+                    flingBehavior = PagerDefaults.flingBehavior(
+                        state = pagerState,
+                        snapAnimationSpec = Motion.iosSpring(stiffness = 400f),
+                    ),
                 ) { index ->
                     val day = days.getOrNull(index) ?: return@HorizontalPager
                     val state = states[day] ?: DayState()
@@ -293,10 +303,12 @@ private fun DayTabs(
             val isSelected = index == selected
             val container by animateColorAsState(
                 if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                animationSpec = Motion.iosSnappySpring(),
                 label = "tabContainer",
             )
             val content by animateColorAsState(
                 if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                animationSpec = Motion.iosSnappySpring(),
                 label = "tabContent",
             )
             Surface(

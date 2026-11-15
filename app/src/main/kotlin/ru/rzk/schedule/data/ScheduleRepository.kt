@@ -4,12 +4,14 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.SystemClock
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.UnknownHostException
 import java.security.MessageDigest
@@ -48,10 +50,10 @@ sealed interface FetchOutcome {
 class ScheduleRepository(private val context: Context, private val site: SiteClient) {
     private val meta = context.getSharedPreferences("schedule_meta", Context.MODE_PRIVATE)
     private val seen = context.getSharedPreferences("schedule_seen", Context.MODE_PRIVATE)
-    private val pdfDir = File(context.filesDir, "pdf").apply { mkdirs() }
-    private val renderDir = File(context.filesDir, "render").apply { mkdirs() }
+    private val pdfDir by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { File(context.filesDir, "pdf").apply { mkdirs() } }
+    private val renderDir by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { File(context.filesDir, "render").apply { mkdirs() } }
     private val locks = ConcurrentHashMap<LocalDate, Mutex>()
-    private val imageSchedule = ImageSchedule(context, site)
+    private val imageSchedule by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { ImageSchedule(context, site) }
 
     @Volatile private var links: List<String> = emptyList()
     @Volatile private var schedulePages: List<String> = emptyList()
@@ -68,6 +70,18 @@ class ScheduleRepository(private val context: Context, private val site: SiteCli
         return Snapshot(day, file, sha, Instant.ofEpochMilli(checkedAt))
     }
 
+    /** Мгновенное чтение уже отрендеренных JPEG-страниц из кэша без блокировки на PdfRenderer. */
+    fun cachedPagesSync(day: LocalDate): Triple<List<File>, String, Instant>? {
+        val snap = cached(day) ?: return null
+        if (snap.images.isNotEmpty()) {
+            return Triple(snap.images, snap.sha256, snap.checkedAt)
+        }
+        val outDir = File(renderDir, snap.sha256.take(24))
+        val pages = PdfPages.cachedPages(outDir)
+        if (pages.isEmpty()) return null
+        return Triple(pages, snap.sha256, snap.checkedAt)
+    }
+
     /** Расписание, сохранённое картинками (см. [ImageSchedule]). */
     private fun cachedImages(day: LocalDate): Snapshot? {
         val names = meta.getString("img_$day", null) ?: return null
@@ -78,10 +92,10 @@ class ScheduleRepository(private val context: Context, private val site: SiteCli
     }
 
     /** Страницы для показа: картинки отдаём как есть, PDF превращаем в картинки. */
-    suspend fun pages(snapshot: Snapshot): List<File> {
-        if (snapshot.images.isNotEmpty()) return snapshot.images
-        val pdf = snapshot.pdf ?: return emptyList()
-        return PdfPages.render(pdf, File(renderDir, snapshot.sha256.take(24)))
+    suspend fun pages(snapshot: Snapshot): List<File> = withContext(Dispatchers.IO) {
+        if (snapshot.images.isNotEmpty()) return@withContext snapshot.images
+        val pdf = snapshot.pdf ?: return@withContext emptyList()
+        PdfPages.render(pdf, File(renderDir, snapshot.sha256.take(24)))
     }
 
     // ---- что пользователь уже видел (для уведомлений) -------------------------------------------
@@ -96,43 +110,45 @@ class ScheduleRepository(private val context: Context, private val site: SiteCli
      * Без [force] свежий кэш (моложе 5 минут) отдаётся без обращения к сайту.
      */
     suspend fun fetch(day: LocalDate, force: Boolean, onStage: (LoadStage) -> Unit = {}): FetchOutcome =
-        locks.getOrPut(day) { Mutex() }.withLock {
-            val cached = cached(day)
-            if (!force && cached != null && Duration.between(cached.checkedAt, Instant.now()) < FRESH_FOR) {
-                return@withLock FetchOutcome.Ok(cached, changed = false)
-            }
+        withContext(Dispatchers.IO) {
+            locks.getOrPut(day) { Mutex() }.withLock {
+                val cached = cached(day)
+                if (!force && cached != null && Duration.between(cached.checkedAt, Instant.now()) < FRESH_FOR) {
+                    return@withLock FetchOutcome.Ok(cached, changed = false)
+                }
 
-            onStage(LoadStage.Searching)
-            when (val result = find(day, force)) {
-                is Found.Hit -> {
-                    val sha = sha256(result.bytes)
-                    val previous = meta.getString("sha_$day", null)
-                    val file = pdfFile(day)
-                    if (previous != sha || !file.exists()) writeAtomically(file, result.bytes)
-                    val now = System.currentTimeMillis()
-                    meta.edit().putString("sha_$day", sha).putLong("at_$day", now).remove("img_$day").apply {
-                        result.template?.let { putString("template", it) } // запоминаем, какой шаблон сработал
-                    }.apply()
-                    FetchOutcome.Ok(Snapshot(day, file, sha, Instant.ofEpochMilli(now)), changed = previous != sha)
+                onStage(LoadStage.Searching)
+                when (val result = find(day, force)) {
+                    is Found.Hit -> {
+                        val sha = sha256(result.bytes)
+                        val previous = meta.getString("sha_$day", null)
+                        val file = pdfFile(day)
+                        if (previous != sha || !file.exists()) writeAtomically(file, result.bytes)
+                        val now = System.currentTimeMillis()
+                        meta.edit().putString("sha_$day", sha).putLong("at_$day", now).remove("img_$day").apply {
+                            result.template?.let { putString("template", it) } // запоминаем, какой шаблон сработал
+                        }.apply()
+                        FetchOutcome.Ok(Snapshot(day, file, sha, Instant.ofEpochMilli(now)), changed = previous != sha)
+                    }
+                    is Found.Images -> {
+                        val previous = meta.getString("sha_$day", null)
+                        val now = System.currentTimeMillis()
+                        meta.edit()
+                            .putString("sha_$day", result.sha)
+                            .putLong("at_$day", now)
+                            .putString("img_$day", result.files.joinToString("|") { it.name })
+                            .apply()
+                        FetchOutcome.Ok(
+                            Snapshot(day, null, result.sha, Instant.ofEpochMilli(now), result.files),
+                            changed = previous != result.sha,
+                        )
+                    }
+                    Found.NotFound ->
+                        if (cached != null) FetchOutcome.Ok(cached, changed = false) else FetchOutcome.NotPublished
+                    is Found.Unreachable ->
+                        if (cached != null) FetchOutcome.Ok(cached, changed = false, stale = true)
+                        else FetchOutcome.Failed(failureKind(result.cause))
                 }
-                is Found.Images -> {
-                    val previous = meta.getString("sha_$day", null)
-                    val now = System.currentTimeMillis()
-                    meta.edit()
-                        .putString("sha_$day", result.sha)
-                        .putLong("at_$day", now)
-                        .putString("img_$day", result.files.joinToString("|") { it.name })
-                        .apply()
-                    FetchOutcome.Ok(
-                        Snapshot(day, null, result.sha, Instant.ofEpochMilli(now), result.files),
-                        changed = previous != result.sha,
-                    )
-                }
-                Found.NotFound ->
-                    if (cached != null) FetchOutcome.Ok(cached, changed = false) else FetchOutcome.NotPublished
-                is Found.Unreachable ->
-                    if (cached != null) FetchOutcome.Ok(cached, changed = false, stale = true)
-                    else FetchOutcome.Failed(failureKind(result.cause))
             }
         }
 
