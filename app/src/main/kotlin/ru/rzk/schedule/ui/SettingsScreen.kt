@@ -417,7 +417,10 @@ internal fun openLink(context: Context, url: String) {
     }
 }
 
-/** Строка настройки с переключателем: нажимается вся строка целиком, а не только сам тумблер. */
+/**
+ * Строка настройки с переключателем: нажимается вся строка целиком, а тумблер всегда строго
+ * выровнен по вертикальному центру строки (даже когда описание занимает 2–3 строки).
+ */
 @Composable
 private fun ToggleItem(
     title: String,
@@ -425,19 +428,38 @@ private fun ToggleItem(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(subtitle) },
-        trailingContent = {
-            Switch(checked = checked, onCheckedChange = null)
-        },
-        colors = transparentItem(),
-        modifier = Modifier.toggleable(
-            value = checked,
-            role = Role.Switch,
-            onValueChange = onCheckedChange,
-        ),
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+        )
+    }
 }
 
 /** Строка со ссылкой: иконка в круглом контейнере Material You, заголовок, подпись и стрелка «открыть». */
