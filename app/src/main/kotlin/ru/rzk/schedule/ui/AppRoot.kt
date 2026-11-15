@@ -6,16 +6,12 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
@@ -31,14 +27,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.animation.core.animateFloatAsState
 import ru.rzk.schedule.ui.theme.LocalWinter
-import ru.rzk.schedule.ui.theme.Garland
 import ru.rzk.schedule.ui.theme.LocalNewYear
 import ru.rzk.schedule.ui.theme.NewYearState
 import ru.rzk.schedule.ui.theme.NewYear
-import ru.rzk.schedule.ui.theme.FrostCorners
 import ru.rzk.schedule.ui.theme.WinterState
 import ru.rzk.schedule.ui.theme.Winter
-import ru.rzk.schedule.ui.theme.SnowFall
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.ui.platform.LocalView
@@ -58,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import ru.rzk.schedule.app
+import ru.rzk.schedule.data.Dates
 import ru.rzk.schedule.ui.theme.NightMode
 import ru.rzk.schedule.ui.theme.ScheduleTheme
 import ru.rzk.schedule.work.WorkScheduler
@@ -111,10 +105,11 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
         derivedStateOf { pinch.coversBottom(bottomInset, rootView.height.toFloat()) }
     }
 
-    // Зимнее оформление: снегопад и сугробы (1–20 декабря или принудительно из режима разработчика).
+    // Зимнее оформление: снегопад и сугробы (1–19 декабря или принудительно из режима разработчика).
     // Новогоднее оформление (20 декабря – 9 января) включает и зиму: снег остаётся.
-    val newYearActive = NewYear.isActive(settings)
-    val winterActive = Winter.isActive(settings) || newYearActive
+    val today = Dates.today()
+    val newYearActive = NewYear.isActive(settings, today)
+    val winterActive = if (NewYear.isSeason(today) || settings.devNewYear) newYearActive else Winter.isActive(settings, today)
     val reduceMotion = remember {
         android.provider.Settings.Global.getFloat(
             context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
@@ -190,22 +185,14 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                     Box(Modifier.fillMaxSize().graphicsLayer { translationX = size.width * (1f - settingsProgress.value) }) {
                         BackHandler(enabled = showSettings) { showSettings = false }
                         SettingsScreen(
-                        settings = settings,
-                        onChange = { transform -> store.update(transform) },
-                        onEnableNotifications = enableNotifications,
-                        onBack = { showSettings = false },
-                    )
+                            settings = settings,
+                            onChange = { transform -> store.update(transform) },
+                            onEnableNotifications = enableNotifications,
+                            onBack = { showSettings = false },
+                        )
                     }
                 }
             }
-
-            // Снегопад поверх экранов, но под просмотром расписания на весь экран.
-            if (winter != null && !viewerVisible) {
-                FrostCorners(winter)
-                SnowFall(winter)
-            }
-            // Гирлянда над всеми экранами, но под просмотром расписания на весь экран.
-            if (newYear != null && !viewerVisible) Garland(newYear)
 
             // BackHandler вынесен наружу: срабатывает только когда вьюер видим.
             BackHandler(enabled = viewerVisible) { viewerVisible = false }

@@ -7,12 +7,16 @@ import android.content.ClipboardManager
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.zIndex
 import ru.rzk.schedule.R
 import android.os.Build
 import android.os.PowerManager
@@ -53,6 +57,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -61,7 +66,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.produceState
 import ru.rzk.schedule.data.Dates
+import ru.rzk.schedule.ui.theme.FrostCorners
+import ru.rzk.schedule.ui.theme.Garland
+import ru.rzk.schedule.ui.theme.LocalNewYear
+import ru.rzk.schedule.ui.theme.LocalWinter
 import ru.rzk.schedule.ui.theme.NewYear
+import ru.rzk.schedule.ui.theme.SnowFall
 import ru.rzk.schedule.ui.theme.Winter
 import ru.rzk.schedule.data.Reports
 import androidx.compose.material3.TextButton
@@ -115,23 +125,36 @@ fun SettingsScreen(
 
     // Вырез камеры в горизонтальной ориентации не должен перекрывать кнопку «Назад» и карточки.
     val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = safeInsets,
-        topBar = {
-            TopAppBar(
-                windowInsets = TopAppBarDefaults.windowInsets.union(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)),
-                title = { Text("Настройки") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Назад")
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        LocalWinter.current?.let { winter ->
+            Box(Modifier.fillMaxSize().zIndex(1f)) {
+                FrostCorners(winter)
+                SnowFall(winter)
+            }
+        }
+        Scaffold(
+            containerColor = Color.Transparent,
+            contentWindowInsets = safeInsets,
+            topBar = {
+                Box {
+                    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.matchParentSize()) {}
+                    LocalNewYear.current?.let { Garland(it) }
+                    Box(Modifier.zIndex(2f)) {
+                        TopAppBar(
+                            windowInsets = TopAppBarDefaults.windowInsets.union(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)),
+                            title = { Text("Настройки") },
+                            navigationIcon = {
+                                IconButton(onClick = onBack) {
+                                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Назад")
+                                }
+                            },
+                            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbar) },
-    ) { padding ->
+                }
+            },
+            snackbarHost = { SnackbarHost(snackbar) },
+        ) { padding ->
         // Прокрутка — на всю ширину экрана, а сами карточки ограничены и выровнены по центру.
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
             // Экран собирается по частям, по одной за кадр: тяжёлая сборка не «замораживает» первые кадры анимации открытия.
@@ -148,18 +171,13 @@ fun SettingsScreen(
             ) {
                 // ---- уведомления ----
                 SettingsCard(title = "Уведомления") {
-                    ListItem(
-                        headlineContent = { Text("Сообщать о расписании") },
-                        supportingContent = { Text("Когда оно выложено на сайте или изменилось") },
-                        trailingContent = {
-                            Switch(
-                                checked = settings.notifications,
-                                onCheckedChange = { on ->
-                                    if (on) onEnableNotifications() else onChange { it.copy(notifications = false) }
-                                },
-                            )
+                    ToggleItem(
+                        title = "Сообщать о расписании",
+                        subtitle = "Когда оно выложено на сайте или изменилось",
+                        checked = settings.notifications,
+                        onCheckedChange = { on ->
+                            if (on) onEnableNotifications() else onChange { it.copy(notifications = false) }
                         },
-                        colors = transparentItem(),
                     )
                     SystemStatusRow { message -> scope.launch { snackbar.showSnackbar(message) } }
                 }
@@ -228,16 +246,11 @@ fun SettingsScreen(
                         }
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        ListItem(
-                            headlineContent = { Text("Цвета из обоев") },
-                            supportingContent = { Text("Material You: палитра подстраивается под ваши обои") },
-                            trailingContent = {
-                                Switch(
-                                    checked = settings.dynamicColor,
-                                    onCheckedChange = { on -> onChange { it.copy(dynamicColor = on) } },
-                                )
-                            },
-                            colors = transparentItem(),
+                        ToggleItem(
+                            title = "Цвета из обоев",
+                            subtitle = "Material You: палитра подстраивается под ваши обои",
+                            checked = settings.dynamicColor,
+                            onCheckedChange = { on -> onChange { it.copy(dynamicColor = on) } },
                         )
                     }
                     // Свои цвета доступны, пока не включены «Цвета из обоев» (на Android 11 и ниже — всегда).
@@ -249,33 +262,26 @@ fun SettingsScreen(
                             onSelect = { color -> onChange { it.copy(seedColor = color) } },
                         )
                     }
-                    // Новогоднее оформление (20 декабря – 9 января): ёлка, гирлянда, трости, счётчик дней.
-                    if (NewYear.isSeason(Dates.today()) || settings.devNewYear) {
-                        ListItem(
-                            headlineContent = { Text("Новогоднее оформление") },
-                            supportingContent = { Text("Ёлка, гирлянда, леденцовые трости и счётчик дней до Нового года") },
-                            trailingContent = {
-                                Switch(
-                                    checked = settings.newYear,
-                                    onCheckedChange = { on -> onChange { it.copy(newYear = on) } },
-                                )
-                            },
-                            colors = transparentItem(),
-                        )
-                    }
-                    // Переключатель виден, пока зимнее оформление действует (сезон 1–20 декабря) или включено разработчиком.
-                    if (Winter.isSeason(Dates.today()) || settings.devWinter) {
-                        ListItem(
-                            headlineContent = { Text("Зимнее оформление") },
-                            supportingContent = { Text("Снегопад и сугробы на карточках с расписанием") },
-                            trailingContent = {
-                                Switch(
-                                    checked = settings.winter,
-                                    onCheckedChange = { on -> onChange { it.copy(winter = on) } },
-                                )
-                            },
-                            colors = transparentItem(),
-                        )
+                    // Сезонное оформление: всегда показывается максимум один переключатель —
+                    // с 20 декабря по 9 января «Новогоднее оформление», а с 1 по 19 декабря «Зимнее оформление».
+                    val today = Dates.today()
+                    when {
+                        NewYear.isSeason(today) || settings.devNewYear -> {
+                            ToggleItem(
+                                title = "Новогоднее оформление",
+                                subtitle = "Снег, ёлка, гирлянда, леденцовые трости и счётчик дней",
+                                checked = settings.newYear,
+                                onCheckedChange = { on -> onChange { it.copy(newYear = on) } },
+                            )
+                        }
+                        Winter.isSeason(today) || settings.devWinter -> {
+                            ToggleItem(
+                                title = "Зимнее оформление",
+                                subtitle = "Снегопад и сугробы на карточках с расписанием",
+                                checked = settings.winter,
+                                onCheckedChange = { on -> onChange { it.copy(winter = on) } },
+                            )
+                        }
                     }
                 }
 
@@ -360,12 +366,25 @@ fun SettingsScreen(
                     DeveloperCard(
                         devNewYear = settings.devNewYear,
                         onDevNewYearChange = { on ->
-                            onChange { it.copy(devNewYear = on, newYear = if (on) true else it.newYear) }
+                            // Взаимоисключающие режимы: при включении новогоднего зимнее отключается.
+                            onChange {
+                                it.copy(
+                                    devNewYear = on,
+                                    devWinter = if (on) false else it.devWinter,
+                                    newYear = if (on) true else it.newYear,
+                                )
+                            }
                         },
                         devWinter = settings.devWinter,
                         onDevWinterChange = { on ->
-                            // Принудительное включение заодно возвращает пользовательский переключатель в «вкл».
-                            onChange { it.copy(devWinter = on, winter = if (on) true else it.winter) }
+                            // При включении зимнего новогоднее отключается, а пользовательский переключатель возвращается в «вкл».
+                            onChange {
+                                it.copy(
+                                    devWinter = on,
+                                    devNewYear = if (on) false else it.devNewYear,
+                                    winter = if (on) true else it.winter,
+                                )
+                            }
                         },
                         onDisable = { onChange { it.copy(devMode = false) } },
                     )
@@ -383,6 +402,7 @@ fun SettingsScreen(
                 Spacer(Modifier.height(24.dp))
             }
         }
+        }
     }
 }
 
@@ -395,6 +415,29 @@ internal fun openLink(context: Context, url: String) {
     runCatching {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
+}
+
+/** Строка настройки с переключателем: нажимается вся строка целиком, а не только сам тумблер. */
+@Composable
+private fun ToggleItem(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        trailingContent = {
+            Switch(checked = checked, onCheckedChange = null)
+        },
+        colors = transparentItem(),
+        modifier = Modifier.toggleable(
+            value = checked,
+            role = Role.Switch,
+            onValueChange = onCheckedChange,
+        ),
+    )
 }
 
 /** Строка со ссылкой: иконка в круглом контейнере Material You, заголовок, подпись и стрелка «открыть». */
@@ -473,17 +516,17 @@ private fun DeveloperCard(
             },
             colors = transparentItem(),
         )
-        ListItem(
-            headlineContent = { Text("Зимнее оформление") },
-            supportingContent = { Text("Показывать снег независимо от даты на устройстве") },
-            trailingContent = { Switch(checked = devWinter, onCheckedChange = onDevWinterChange) },
-            colors = transparentItem(),
+        ToggleItem(
+            title = "Зимнее оформление",
+            subtitle = "Показывать снег независимо от даты на устройстве",
+            checked = devWinter,
+            onCheckedChange = onDevWinterChange,
         )
-        ListItem(
-            headlineContent = { Text("Новогоднее оформление") },
-            supportingContent = { Text("Показывать ёлку, гирлянду и счётчик независимо от даты на устройстве") },
-            trailingContent = { Switch(checked = devNewYear, onCheckedChange = onDevNewYearChange) },
-            colors = transparentItem(),
+        ToggleItem(
+            title = "Новогоднее оформление",
+            subtitle = "Показывать ёлку, гирлянду и счётчик независимо от даты на устройстве",
+            checked = devNewYear,
+            onCheckedChange = onDevNewYearChange,
         )
         Row(Modifier.padding(horizontal = 8.dp)) {
             TextButton(onClick = { refresh++ }) { Text("Обновить") }

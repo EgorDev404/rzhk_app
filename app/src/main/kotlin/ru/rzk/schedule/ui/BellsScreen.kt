@@ -80,7 +80,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -89,6 +91,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -98,6 +101,11 @@ import ru.rzk.schedule.data.Bell
 import ru.rzk.schedule.data.BellSchedule
 import ru.rzk.schedule.data.BellState
 import ru.rzk.schedule.data.Dates
+import ru.rzk.schedule.ui.theme.FrostCorners
+import ru.rzk.schedule.ui.theme.Garland
+import ru.rzk.schedule.ui.theme.LocalNewYear
+import ru.rzk.schedule.ui.theme.LocalWinter
+import ru.rzk.schedule.ui.theme.SnowFall
 import ru.rzk.schedule.widget.BellsWidget
 import java.time.LocalDateTime
 import kotlin.math.roundToInt
@@ -158,70 +166,98 @@ fun BellsScreen(
         )
     }
 
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            val barActions: @Composable RowScope.() -> Unit = {
-                IconButton(onClick = onOpenSettings) {
-                    Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
-                }
+    Box(Modifier.fillMaxSize()) {
+        LocalWinter.current?.let { winter ->
+            Box(Modifier.fillMaxSize().zIndex(1f)) {
+                FrostCorners(winter)
+                SnowFall(winter)
             }
-            if (compact) {
-                TopAppBar(
-                    title = { Text("Звонки") },
-                    actions = barActions,
-                    scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        }
+
+        Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            topBar = {
+                val barActions: @Composable RowScope.() -> Unit = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
+                    }
+                }
+                val fraction = if (compact) {
+                    if (scrollBehavior.state.overlappedFraction > 0.01f) 1f else 0f
+                } else {
+                    scrollBehavior.state.collapsedFraction
+                }
+                val barColor by animateColorAsState(
+                    lerp(
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceContainer,
+                        fraction,
                     ),
+                    label = "bellsTopBarBg",
                 )
+                Box {
+                    Surface(color = barColor, modifier = Modifier.matchParentSize()) {}
+                    LocalNewYear.current?.let { Garland(it) }
+                    Box(Modifier.zIndex(2f)) {
+                        if (compact) {
+                            TopAppBar(
+                                title = { Text("Звонки") },
+                                actions = barActions,
+                                scrollBehavior = scrollBehavior,
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = Color.Transparent,
+                                    scrolledContainerColor = Color.Transparent,
+                                ),
+                            )
+                        } else {
+                            LargeTopAppBar(
+                                title = { Text("Звонки") },
+                                actions = barActions,
+                                scrollBehavior = scrollBehavior,
+                                colors = TopAppBarDefaults.largeTopAppBarColors(
+                                    containerColor = Color.Transparent,
+                                    scrolledContainerColor = Color.Transparent,
+                                ),
+                            )
+                        }
+                    }
+                }
+            },
+        ) { padding ->
+            if (twoPane) {
+                // Слева — «Сейчас», справа — таблица. Каждая колонка прокручивается сама.
+                Row(
+                    Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        NowCard(state = state, canExpand = !fullDay, onShowFullDay = { onFullDayChange(true) })
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        DayLengthSwitch(fullDay = fullDay, onChange = onFullDayChange)
+                        BellTable(visibleCount = count, state = state)
+                        Footnote()
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
             } else {
-                LargeTopAppBar(
-                    title = { Text("Звонки") },
-                    actions = barActions,
-                    scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.largeTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ),
-                )
-            }
-        },
-    ) { padding ->
-        if (twoPane) {
-            // Слева — «Сейчас», справа — таблица. Каждая колонка прокручивается сама.
-            Row(
-                Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Column(
-                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    NowCard(state = state, canExpand = !fullDay, onShowFullDay = { onFullDayChange(true) })
-                    Spacer(Modifier.height(8.dp))
-                }
-                Column(
-                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    DayLengthSwitch(fullDay = fullDay, onChange = onFullDayChange)
-                    BellTable(visibleCount = count, state = state)
-                    Footnote()
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-        } else {
-            Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                CenteredColumn(maxWidth = 640.dp, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    NowCard(state = state, canExpand = !fullDay, onShowFullDay = { onFullDayChange(true) })
-                    DayLengthSwitch(fullDay = fullDay, onChange = onFullDayChange)
-                    BellTable(visibleCount = count, state = state)
-                    Footnote()
-                    Spacer(Modifier.height(8.dp))
+                Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                    CenteredColumn(maxWidth = 640.dp, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        NowCard(state = state, canExpand = !fullDay, onShowFullDay = { onFullDayChange(true) })
+                        DayLengthSwitch(fullDay = fullDay, onChange = onFullDayChange)
+                        BellTable(visibleCount = count, state = state)
+                        Footnote()
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
         }

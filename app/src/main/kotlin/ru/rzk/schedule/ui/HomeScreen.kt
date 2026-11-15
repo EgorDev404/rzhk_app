@@ -2,6 +2,7 @@ package ru.rzk.schedule.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,8 +37,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import ru.rzk.schedule.ui.theme.FrostCorners
+import ru.rzk.schedule.ui.theme.Garland
+import ru.rzk.schedule.ui.theme.LocalWinter
 import ru.rzk.schedule.ui.theme.NewYearCountdown
 import ru.rzk.schedule.ui.theme.LocalNewYear
+import ru.rzk.schedule.ui.theme.SnowFall
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,9 +51,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -115,87 +123,117 @@ fun HomeScreen(
         }
     }
 
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0), // нижний отступ даёт навигационная панель снаружи
-        topBar = {
-            val barActions: @Composable RowScope.() -> Unit = {
-                IconButton(onClick = { showDatePicker = true }) {
-                    Icon(Icons.Rounded.CalendarMonth, contentDescription = "Выбрать другой день")
-                }
-                IconButton(onClick = onOpenSettings) {
-                    Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
-                }
+    Box(Modifier.fillMaxSize()) {
+        // Иней и снегопад рисуются поверх фона и контента, но под заголовком и кнопками тулбара.
+        LocalWinter.current?.let { winter ->
+            Box(Modifier.fillMaxSize().zIndex(1f)) {
+                FrostCorners(winter)
+                SnowFall(winter)
             }
-            if (compact) {
-                TopAppBar(
-                    title = {
-                        DayTabs(
-                            days = days,
-                            states = states,
-                            selected = pagerState.targetPage,
-                            onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
-                            compact = true,
-                        )
-                    },
-                    actions = barActions,
-                    scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        }
+
+        Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0), // нижний отступ даёт навигационная панель снаружи
+            topBar = {
+                val barActions: @Composable RowScope.() -> Unit = {
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(Icons.Rounded.CalendarMonth, contentDescription = "Выбрать другой день")
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
+                    }
+                }
+                val fraction = if (compact) {
+                    if (scrollBehavior.state.overlappedFraction > 0.01f) 1f else 0f
+                } else {
+                    scrollBehavior.state.collapsedFraction
+                }
+                val barColor by animateColorAsState(
+                    lerp(
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceContainer,
+                        fraction,
                     ),
+                    label = "topBarBg",
                 )
-            } else {
-                LargeTopAppBar(
-                    title = {
-                        // Подсветка заголовка стартует, когда расписание на сегодня загрузилось.
-                        val loaded = states[days.first()]?.content?.let { it !is DayContent.Loading } ?: false
-                        LaunchHighlightTitle("Расписание", ready = loaded)
-                    },
-                    actions = barActions,
-                    scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.largeTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ),
-                )
-            }
-        },
-        snackbarHost = { SnackbarHost(snackbar) },
-    ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            if (!compact) {
-                DayTabs(
-                    days = days,
-                    states = states,
-                    selected = pagerState.targetPage,
-                    onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
-                )
-                // Новогодний счётчик дней под переключателем дней.
-                if (LocalNewYear.current != null) {
-                    NewYearCountdown(Modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp))
+                // Фон шапки лежит под снегом и гирляндой, а сам TopAppBar с заголовком и кнопками — поверх них (zIndex = 2f).
+                Box {
+                    Surface(color = barColor, modifier = Modifier.matchParentSize()) {}
+                    LocalNewYear.current?.let { Garland(it) }
+                    Box(Modifier.zIndex(2f)) {
+                        if (compact) {
+                            TopAppBar(
+                                title = {
+                                    DayTabs(
+                                        days = days,
+                                        states = states,
+                                        selected = pagerState.targetPage,
+                                        onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                                        compact = true,
+                                    )
+                                },
+                                actions = barActions,
+                                scrollBehavior = scrollBehavior,
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = Color.Transparent,
+                                    scrolledContainerColor = Color.Transparent,
+                                ),
+                            )
+                        } else {
+                            LargeTopAppBar(
+                                title = {
+                                    // Подсветка заголовка стартует, когда расписание на сегодня загрузилось.
+                                    val loaded = states[days.first()]?.content?.let { it !is DayContent.Loading } ?: false
+                                    LaunchHighlightTitle("Расписание", ready = loaded)
+                                },
+                                actions = barActions,
+                                scrollBehavior = scrollBehavior,
+                                colors = TopAppBarDefaults.largeTopAppBarColors(
+                                    containerColor = Color.Transparent,
+                                    scrolledContainerColor = Color.Transparent,
+                                ),
+                            )
+                        }
+                    }
                 }
-            }
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                key = { index -> days.getOrNull(index)?.toString() ?: index.toString() },
-                beyondViewportPageCount = 1,
-            ) { index ->
-                val day = days.getOrNull(index) ?: return@HorizontalPager
-                val state = states[day] ?: DayState()
-                DayPage(
-                    day = day,
-                    state = state,
-                    notificationsOn = notificationsOn,
-                    onRefresh = { vm.refresh(day) },
-                    onOpenPage = { page ->
-                        val ready = state.content as? DayContent.Ready ?: return@DayPage
-                        onOpenViewer(ViewerRequest(Dates.full(day), ready.pages, page))
-                    },
-                    onEnableNotifications = onEnableNotifications,
-                )
+            },
+            snackbarHost = { SnackbarHost(snackbar) },
+        ) { padding ->
+            Column(Modifier.padding(padding).fillMaxSize()) {
+                if (!compact) {
+                    DayTabs(
+                        days = days,
+                        states = states,
+                        selected = pagerState.targetPage,
+                        onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                    )
+                    // Новогодний счётчик дней под переключателем дней.
+                    if (LocalNewYear.current != null) {
+                        NewYearCountdown(Modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp))
+                    }
+                }
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    key = { index -> days.getOrNull(index)?.toString() ?: index.toString() },
+                    beyondViewportPageCount = 1,
+                ) { index ->
+                    val day = days.getOrNull(index) ?: return@HorizontalPager
+                    val state = states[day] ?: DayState()
+                    DayPage(
+                        day = day,
+                        state = state,
+                        notificationsOn = notificationsOn,
+                        onRefresh = { vm.refresh(day) },
+                        onOpenPage = { page ->
+                            val ready = state.content as? DayContent.Ready ?: return@DayPage
+                            onOpenViewer(ViewerRequest(Dates.full(day), ready.pages, page))
+                        },
+                        onEnableNotifications = onEnableNotifications,
+                    )
+                }
             }
         }
     }

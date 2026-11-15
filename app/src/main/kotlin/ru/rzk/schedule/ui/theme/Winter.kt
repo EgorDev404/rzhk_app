@@ -41,17 +41,17 @@ import kotlin.random.Random
 
 /**
  * Зимнее оформление: снегопад поверх всего приложения и сугробы на карточках с расписанием.
- * Сезон: с 1 по 20 декабря (затем начнётся новогоднее оформление).
+ * Сезон: с 1 по 19 декабря (с 20 декабря по 9 января включается новогоднее оформление).
  */
 object Winter {
-    fun isSeason(date: LocalDate): Boolean = date.month == Month.DECEMBER && date.dayOfMonth in 1..20
+    fun isSeason(date: LocalDate): Boolean = date.month == Month.DECEMBER && date.dayOfMonth in 1..19
 
     /**
      * Включено ли зимнее оформление. Пользователь может выключить его переключателем («Зимнее оформление»);
      * разработчик может показывать его независимо от даты на устройстве.
      */
     fun isActive(settings: Settings, today: LocalDate = Dates.today()): Boolean =
-        settings.winter && (settings.devWinter || isSeason(today))
+        settings.winter && (settings.devWinter || isSeason(today)) && !NewYear.isSeason(today) && !settings.devNewYear
 }
 
 /** Общее состояние зимы: сколько снега успело скопиться на карточках (0..1). */
