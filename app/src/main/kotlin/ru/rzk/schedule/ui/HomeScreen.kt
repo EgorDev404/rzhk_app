@@ -1,12 +1,17 @@
 package ru.rzk.schedule.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,6 +21,8 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.Bookmarks
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudOff
@@ -38,12 +45,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import ru.rzk.schedule.ui.theme.FrostCorners
-import ru.rzk.schedule.ui.theme.Garland
-import ru.rzk.schedule.ui.theme.LocalWinter
-import ru.rzk.schedule.ui.theme.NewYearCountdown
-import ru.rzk.schedule.ui.theme.LocalNewYear
-import ru.rzk.schedule.ui.theme.SnowFall
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,30 +56,48 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import ru.rzk.schedule.app
 import ru.rzk.schedule.data.Dates
+import ru.rzk.schedule.ui.theme.FrostCorners
+import ru.rzk.schedule.ui.theme.Garland
+import ru.rzk.schedule.ui.theme.LocalNewYear
+import ru.rzk.schedule.ui.theme.LocalWinter
+import ru.rzk.schedule.ui.theme.NewYearCountdown
+import ru.rzk.schedule.ui.theme.SnowFall
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-/** Что показать в полноэкранном просмотре. */
-class ViewerRequest(val title: String, val pages: List<File>, val startPage: Int)
+/** Что показать в полноэкранном просмотре. [day] передаётся, чтобы прямо из просмотра можно было добавить день в закладки. */
+class ViewerRequest(
+    val title: String,
+    val pages: List<File>,
+    val startPage: Int,
+    val day: LocalDate? = null,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     vm: HomeViewModel,
     notificationsOn: Boolean,
+    onOpenBookmarks: () -> Unit,
     onOpenSettings: () -> Unit,
     onEnableNotifications: () -> Unit,
     onOpenViewer: (ViewerRequest) -> Unit,
 ) {
+    val context = LocalContext.current
+    val bookmarksStore = remember { context.app.bookmarks }
+    val bookmarks by bookmarksStore.flow.collectAsStateWithLifecycle()
+
     val days by vm.days.collectAsStateWithLifecycle()
     val states by vm.states.collectAsStateWithLifecycle()
     val pending by vm.pendingDay.collectAsStateWithLifecycle()
@@ -93,6 +112,7 @@ fun HomeScreen(
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     }
     var showDatePicker by remember { mutableStateOf(false) }
+    var bookmarkDialogTarget by remember { mutableStateOf<Pair<LocalDate, List<File>>?>(null) }
 
     LifecycleResumeEffect(Unit) {
         vm.onResume()
@@ -139,6 +159,16 @@ fun HomeScreen(
             contentWindowInsets = WindowInsets(0, 0, 0, 0), // нижний отступ даёт навигационная панель снаружи
             topBar = {
                 val barActions: @Composable RowScope.() -> Unit = {
+                    // Значок закладок рядом с календарём появляется только тогда, когда есть хотя бы одна закладка.
+                    AnimatedVisibility(
+                        visible = bookmarks.isNotEmpty(),
+                        enter = fadeIn(Motion.iosSnappySpring()) + scaleIn(Motion.iosSnappySpring(), initialScale = 0.7f),
+                        exit = fadeOut(Motion.iosSnappySpring()) + scaleOut(Motion.iosSnappySpring(), targetScale = 0.7f),
+                    ) {
+                        IconButton(onClick = onOpenBookmarks) {
+                            Icon(Icons.Rounded.Bookmarks, contentDescription = "Закладки")
+                        }
+                    }
                     IconButton(onClick = { showDatePicker = true }) {
                         Icon(Icons.Rounded.CalendarMonth, contentDescription = "Выбрать другой день")
                     }
@@ -171,6 +201,7 @@ fun HomeScreen(
                                     DayTabs(
                                         days = days,
                                         states = states,
+                                        bookmarkedDays = bookmarks.mapTo(HashSet()) { it.day },
                                         selected = pagerState.targetPage,
                                         onSelect = { index ->
                                             scope.launch { pagerState.animateScrollToPage(index, animationSpec = Motion.iosSpring()) }
@@ -210,6 +241,7 @@ fun HomeScreen(
                     DayTabs(
                         days = days,
                         states = states,
+                        bookmarkedDays = bookmarks.mapTo(HashSet()) { it.day },
                         selected = pagerState.targetPage,
                         onSelect = { index ->
                             scope.launch { pagerState.animateScrollToPage(index, animationSpec = Motion.iosSpring()) }
@@ -232,20 +264,53 @@ fun HomeScreen(
                 ) { index ->
                     val day = days.getOrNull(index) ?: return@HorizontalPager
                     val state = states[day] ?: DayState()
+                    val bookmarkForDay = remember(bookmarks, day) { bookmarks.firstOrNull { it.day == day } }
                     DayPage(
                         day = day,
                         state = state,
                         notificationsOn = notificationsOn,
+                        bookmark = bookmarkForDay,
+                        hasAnyBookmarks = bookmarks.isNotEmpty(),
+                        onBookmarkClick = { pages -> bookmarkDialogTarget = day to pages },
+                        onOpenBookmarks = onOpenBookmarks,
                         onRefresh = { vm.refresh(day) },
                         onOpenPage = { page ->
                             val ready = state.content as? DayContent.Ready ?: return@DayPage
-                            onOpenViewer(ViewerRequest(Dates.full(day), ready.pages, page))
+                            onOpenViewer(ViewerRequest(Dates.full(day), ready.pages, page, day = day))
                         },
                         onEnableNotifications = onEnableNotifications,
                     )
                 }
             }
         }
+    }
+
+    bookmarkDialogTarget?.let { (day, pages) ->
+        val existing = bookmarks.firstOrNull { it.day == day }
+        BookmarkEditDialog(
+            dayTitle = Dates.full(day),
+            initialComment = existing?.comment.orEmpty(),
+            isExisting = existing != null,
+            onDismiss = { bookmarkDialogTarget = null },
+            onSave = { comment ->
+                bookmarkDialogTarget = null
+                scope.launch {
+                    bookmarksStore.save(day, pages, comment)
+                    snackbar.currentSnackbarData?.dismiss()
+                    snackbar.showSnackbar("Сохранено в закладки")
+                }
+            },
+            onDelete = if (existing != null) {
+                {
+                    bookmarkDialogTarget = null
+                    scope.launch {
+                        bookmarksStore.removeByDay(day)
+                        snackbar.currentSnackbarData?.dismiss()
+                        snackbar.showSnackbar("Удалено из закладок")
+                    }
+                }
+            } else null,
+        )
     }
 
     if (showDatePicker) {
@@ -280,7 +345,7 @@ fun HomeScreen(
 }
 
 /**
- * Крупные переключатели дней с индикатором, есть ли расписание.
+ * Крупные переключатели дней с индикатором, есть ли расписание (и значком закладки, если день сохранён).
  *
  * Заголовок таба: «Сегодня» / «Завтра» для первых двух дней, для третьего (это бывает
  * в пятницу и субботу) — просто день недели, потому что «Послезавтра» не помещается.
@@ -289,6 +354,7 @@ fun HomeScreen(
 private fun DayTabs(
     days: List<LocalDate>,
     states: Map<LocalDate, DayState>,
+    bookmarkedDays: Set<LocalDate>,
     selected: Int,
     onSelect: (Int) -> Unit,
     compact: Boolean = false,
@@ -301,6 +367,7 @@ private fun DayTabs(
     ) {
         days.forEachIndexed { index, day ->
             val isSelected = index == selected
+            val isBookmarked = day in bookmarkedDays
             val container by animateColorAsState(
                 if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
                 animationSpec = Motion.iosSnappySpring(),
@@ -339,7 +406,7 @@ private fun DayTabs(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        TabStatus(states[day]?.content, compact = true)
+                        TabStatus(states[day]?.content, isBookmarked = isBookmarked, compact = true)
                     }
                 } else {
                     Column(
@@ -353,7 +420,7 @@ private fun DayTabs(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text("${Dates.weekdayShort(day)}, ${Dates.dayMonth(day)}", style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                        TabStatus(states[day]?.content)
+                        TabStatus(states[day]?.content, isBookmarked = isBookmarked)
                     }
                 }
             }
@@ -369,7 +436,7 @@ private fun tabTitle(day: LocalDate, today: LocalDate): String = when (day.toEpo
 }
 
 @Composable
-private fun TabStatus(content: DayContent?, compact: Boolean = false) {
+private fun TabStatus(content: DayContent?, isBookmarked: Boolean = false, compact: Boolean = false) {
     val (icon, text) = when (content) {
         is DayContent.Ready -> Icons.Rounded.CheckCircle to "есть"
         DayContent.NotPublished -> Icons.Rounded.EventBusy to "нет"
@@ -377,11 +444,15 @@ private fun TabStatus(content: DayContent?, compact: Boolean = false) {
         else -> null to "…"
     }
     if (compact) {
-        if (icon != null) Icon(icon, contentDescription = text, modifier = Modifier.size(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (icon != null) Icon(icon, contentDescription = text, modifier = Modifier.size(16.dp))
+            if (isBookmarked) Icon(Icons.Rounded.Bookmark, contentDescription = "В закладках", modifier = Modifier.size(14.dp))
+        }
         return
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(12.dp))
         Text(text, style = MaterialTheme.typography.labelSmall)
+        if (isBookmarked) Icon(Icons.Rounded.Bookmark, contentDescription = "В закладках", modifier = Modifier.size(12.dp))
     }
 }

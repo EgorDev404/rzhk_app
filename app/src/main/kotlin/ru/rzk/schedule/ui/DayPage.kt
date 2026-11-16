@@ -1,6 +1,7 @@
 package ru.rzk.schedule.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -8,39 +9,51 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material.icons.rounded.AcUnit
+import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.EventBusy
-import ru.rzk.schedule.ui.theme.LocalWinter
-import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import ru.rzk.schedule.data.BookmarkEntry
 import ru.rzk.schedule.data.Dates
 import ru.rzk.schedule.data.FailureKind
+import ru.rzk.schedule.ui.theme.LocalWinter
+import java.io.File
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -63,6 +76,10 @@ fun DayPage(
     day: LocalDate,
     state: DayState,
     notificationsOn: Boolean,
+    bookmark: BookmarkEntry?,
+    hasAnyBookmarks: Boolean,
+    onBookmarkClick: (List<File>) -> Unit,
+    onOpenBookmarks: () -> Unit,
     onRefresh: () -> Unit,
     onOpenPage: (Int) -> Unit,
     onEnableNotifications: () -> Unit,
@@ -100,9 +117,27 @@ fun DayPage(
                 ) { content ->
                     when (content) {
                         is DayContent.Loading -> LoadingPlaceholder(content.stage)
-                        is DayContent.Ready -> ReadyContent(day, content, onOpenPage)
-                        DayContent.NotPublished -> NotPublishedState(day, notificationsOn, onRefresh, onEnableNotifications)
-                        is DayContent.Failed -> FailedState(content.kind, onRefresh)
+                        is DayContent.Ready -> ReadyContent(
+                            day = day,
+                            content = content,
+                            bookmark = bookmark,
+                            onBookmarkClick = { onBookmarkClick(content.pages) },
+                            onOpenPage = onOpenPage,
+                        )
+                        DayContent.NotPublished -> NotPublishedState(
+                            day = day,
+                            notificationsOn = notificationsOn,
+                            hasAnyBookmarks = hasAnyBookmarks,
+                            onOpenBookmarks = onOpenBookmarks,
+                            onRetry = onRefresh,
+                            onEnableNotifications = onEnableNotifications,
+                        )
+                        is DayContent.Failed -> FailedState(
+                            kind = content.kind,
+                            hasAnyBookmarks = hasAnyBookmarks,
+                            onOpenBookmarks = onOpenBookmarks,
+                            onRetry = onRefresh,
+                        )
                     }
                 }
             }
@@ -112,7 +147,13 @@ fun DayPage(
 }
 
 @Composable
-private fun ReadyContent(day: LocalDate, content: DayContent.Ready, onOpenPage: (Int) -> Unit) {
+private fun ReadyContent(
+    day: LocalDate,
+    content: DayContent.Ready,
+    bookmark: BookmarkEntry?,
+    onBookmarkClick: () -> Unit,
+    onOpenPage: (Int) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (content.stale) {
             InfoBanner(
@@ -122,18 +163,94 @@ private fun ReadyContent(day: LocalDate, content: DayContent.Ready, onOpenPage: 
                 container = MaterialTheme.colorScheme.tertiaryContainer,
                 content = MaterialTheme.colorScheme.onTertiaryContainer,
             )
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (!content.stale) {
                 Icon(Icons.Rounded.CheckCircle, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                 Text(
-                    updatedText(content.checkedAt) + " · потяните вниз, чтобы обновить",
+                    text = updatedText(content.checkedAt) + " · потяните вниз, чтобы обновить",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            BookmarkPill(
+                bookmarked = bookmark != null,
+                onClick = onBookmarkClick,
+            )
+        }
+
+        // Если к закладке на этот день добавлен комментарий — аккуратно показываем его прямо над расписанием.
+        if (bookmark != null && bookmark.comment.isNotBlank()) {
+            Surface(
+                onClick = onBookmarkClick,
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(Icons.Rounded.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(
+                        text = bookmark.comment,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
+
         content.pages.forEachIndexed { index, file ->
             SchedulePageCard(file, label = "Расписание ${Dates.accusative(day)}, страница ${index + 1}") { onOpenPage(index) }
+        }
+    }
+}
+
+@Composable
+private fun BookmarkPill(bookmarked: Boolean, onClick: () -> Unit) {
+    val container by animateColorAsState(
+        if (bookmarked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        animationSpec = Motion.iosSnappySpring(),
+        label = "bookmarkPillBg",
+    )
+    val content by animateColorAsState(
+        if (bookmarked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = Motion.iosSnappySpring(),
+        label = "bookmarkPillContent",
+    )
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(50),
+        color = container,
+        contentColor = content,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = if (bookmarked) Icons.Rounded.Bookmark else Icons.Outlined.BookmarkAdd,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = if (bookmarked) "В закладках" else "В закладки",
+                style = MaterialTheme.typography.labelMedium,
+            )
         }
     }
 }
@@ -142,6 +259,8 @@ private fun ReadyContent(day: LocalDate, content: DayContent.Ready, onOpenPage: 
 private fun NotPublishedState(
     day: LocalDate,
     notificationsOn: Boolean,
+    hasAnyBookmarks: Boolean,
+    onOpenBookmarks: () -> Unit,
     onRetry: () -> Unit,
     onEnableNotifications: () -> Unit,
 ) {
@@ -150,7 +269,15 @@ private fun NotPublishedState(
             icon = if (LocalWinter.current != null) Icons.Rounded.AcUnit else Icons.Rounded.EventBusy,
             title = "Воскресенье — выходной",
             message = "Занятий по расписанию нет. Хорошего отдыха!",
-        )
+        ) {
+            if (hasAnyBookmarks) {
+                FilledTonalButton(onClick = onOpenBookmarks) {
+                    Icon(Icons.Rounded.Bookmark, null, Modifier.size(18.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text("Открыть закладки")
+                }
+            }
+        }
         return
     }
     StatusState(
@@ -171,6 +298,19 @@ private fun NotPublishedState(
                 Text("Сообщить, когда выложат")
             }
         }
+        if (hasAnyBookmarks) {
+            FilledTonalButton(
+                onClick = onOpenBookmarks,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ),
+            ) {
+                Icon(Icons.Rounded.Bookmark, null, Modifier.size(18.dp))
+                Spacer(Modifier.size(8.dp))
+                Text("Посмотреть закладки")
+            }
+        }
         OutlinedButton(onClick = onRetry) {
             Icon(Icons.Rounded.Refresh, null, Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
@@ -180,7 +320,12 @@ private fun NotPublishedState(
 }
 
 @Composable
-private fun FailedState(kind: FailureKind, onRetry: () -> Unit) {
+private fun FailedState(
+    kind: FailureKind,
+    hasAnyBookmarks: Boolean,
+    onOpenBookmarks: () -> Unit,
+    onRetry: () -> Unit,
+) {
     val (title, message) = when (kind) {
         FailureKind.Offline -> "Нет подключения к интернету" to
             "Проверьте сеть и потяните вниз, чтобы повторить."
@@ -196,6 +341,13 @@ private fun FailedState(kind: FailureKind, onRetry: () -> Unit) {
             Icon(Icons.Rounded.Refresh, null, Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
             Text("Повторить")
+        }
+        if (hasAnyBookmarks) {
+            OutlinedButton(onClick = onOpenBookmarks) {
+                Icon(Icons.Rounded.Bookmark, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Открыть закладки")
+            }
         }
     }
 }

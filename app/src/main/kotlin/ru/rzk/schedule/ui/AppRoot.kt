@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import kotlin.math.max
 import kotlin.math.roundToInt
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
@@ -58,14 +59,17 @@ import ru.rzk.schedule.ui.theme.NightMode
 import ru.rzk.schedule.ui.theme.ScheduleTheme
 import ru.rzk.schedule.work.WorkScheduler
 
-/** Корень интерфейса: тема, переключение «главный экран ↔ настройки» и полноэкранный просмотр поверх. */
+/** Корень интерфейса: тема, переключение «главный экран ↔ закладки / настройки» и полноэкранный просмотр поверх. */
 @Composable
 fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
     val context = LocalContext.current
     val store = context.app.settings
+    val bookmarksStore = context.app.bookmarks
     val settings by store.flow.collectAsStateWithLifecycle()
+    val bookmarks by bookmarksStore.flow.collectAsStateWithLifecycle()
 
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showBookmarks by rememberSaveable { mutableStateOf(false) }
     var viewer by remember { mutableStateOf<ViewerRequest?>(null) }
     var viewerVisible by remember { mutableStateOf(false) }
 
@@ -142,21 +146,27 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
             LocalNewYear provides newYear,
         ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            // Переход «главный экран ↔ настройки» на пружинной физике iOS: мгновенно откликается и можно
-            // развернуть прямо на полпути жестом «Назад» без резкого рывка.
+            // Переходы «главный экран ↔ закладки» и «главный экран ↔ настройки» на пружинной физике iOS.
             val settingsProgress = animateFloatAsState(
                 targetValue = if (showSettings) 1f else 0f,
                 animationSpec = Motion.iosSpring(stiffness = 420f),
                 label = "settings",
             )
-            // Пока настройки на экране или уезжают, показываем их; значение читается так, чтобы не пересобирать экран на каждом кадре.
+            val bookmarksProgress = animateFloatAsState(
+                targetValue = if (showBookmarks) 1f else 0f,
+                animationSpec = Motion.iosSpring(stiffness = 420f),
+                label = "bookmarks",
+            )
             val settingsVisible by remember { derivedStateOf { showSettings || settingsProgress.value > 0.001f } }
+            val bookmarksVisible by remember { derivedStateOf { showBookmarks || bookmarksProgress.value > 0.001f } }
+            val subscreenProgress by remember { derivedStateOf { max(settingsProgress.value, bookmarksProgress.value) } }
 
             Box(Modifier.fillMaxSize()) {
-                // Главный экран слегка уезжает влево и затемняется (параллакс iOS UINavigationController), настройки наезжают справа.
+                // Главный экран слегка уезжает влево и затемняется (параллакс iOS UINavigationController),
+                // а закладки или настройки наезжают справа.
                 Box(
                     Modifier.fillMaxSize().graphicsLayer {
-                        val p = settingsProgress.value
+                        val p = subscreenProgress
                         translationX = -size.width * 0.24f * p
                         val s = 1f - 0.02f * p
                         scaleX = s
@@ -169,6 +179,7 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                         notificationsOn = settings.notifications,
                         bellsFull = settings.bellsFull,
                         onBellsFullChange = { full -> store.update { it.copy(bellsFull = full) } },
+                        onOpenBookmarks = { showBookmarks = true },
                         onOpenSettings = { showSettings = true },
                         onEnableNotifications = enableNotifications,
                         onOpenViewer = { request ->
@@ -176,18 +187,37 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                             viewerVisible = true
                         },
                     )
-                    if (settingsVisible) {
+                    if (settingsVisible || bookmarksVisible) {
                         Box(
                             Modifier
                                 .fillMaxSize()
-                                .graphicsLayer { alpha = 0.22f * settingsProgress.value }
+                                .graphicsLayer { alpha = 0.22f * subscreenProgress }
                                 .background(Color.Black)
-                                // Пока открыты настройки, главный экран под ними не должен реагировать на касания.
+                                // Пока открыты настройки или закладки, главный экран под ними не должен реагировать на касания.
                                 .pointerInput(Unit) {
                                     awaitPointerEventScope {
                                         while (true) awaitPointerEvent().changes.forEach { it.consume() }
                                     }
                                 },
+                        )
+                    }
+                }
+                if (bookmarksVisible) {
+                    Box(
+                        Modifier.fillMaxSize().graphicsLayer {
+                            translationX = size.width * (1f - bookmarksProgress.value)
+                            shadowElevation = 24f * bookmarksProgress.value * (1f - bookmarksProgress.value) * 4f
+                        },
+                    ) {
+                        BackHandler(enabled = showBookmarks && !viewerVisible) { showBookmarks = false }
+                        BookmarksScreen(
+                            store = bookmarksStore,
+                            bookmarks = bookmarks,
+                            onOpenViewer = { request ->
+                                viewer = request
+                                viewerVisible = true
+                            },
+                            onBack = { showBookmarks = false },
                         )
                     }
                 }
@@ -198,7 +228,7 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                             shadowElevation = 24f * settingsProgress.value * (1f - settingsProgress.value) * 4f
                         },
                     ) {
-                        BackHandler(enabled = showSettings) { showSettings = false }
+                        BackHandler(enabled = showSettings && !viewerVisible) { showSettings = false }
                         SettingsScreen(
                             settings = settings,
                             onChange = { transform -> store.update(transform) },
@@ -218,7 +248,11 @@ fun AppRoot(vm: HomeViewModel, pendingTab: MutableStateFlow<Int?>) {
                     enter = fadeIn(tween(180)) + scaleIn(Motion.iosSpring(stiffness = 460f), initialScale = 0.92f),
                     exit = fadeOut(tween(150)) + scaleOut(Motion.iosSpring(stiffness = 500f), targetScale = 0.92f),
                 ) {
-                    ViewerScreen(request = request, onClose = { viewerVisible = false })
+                    ViewerScreen(
+                        request = request,
+                        bookmarksStore = bookmarksStore,
+                        onClose = { viewerVisible = false },
+                    )
                 }
             }
 

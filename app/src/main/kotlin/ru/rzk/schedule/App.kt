@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import ru.rzk.schedule.data.BookmarksStore
 import ru.rzk.schedule.data.ScheduleRepository
 import ru.rzk.schedule.data.SettingsStore
 import ru.rzk.schedule.data.SiteClient
@@ -20,6 +21,10 @@ class ScheduleApp : Application() {
 
     lateinit var settings: SettingsStore
         private set
+
+    val bookmarks: BookmarksStore by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        BookmarksStore(this)
+    }
 
     val repository: ScheduleRepository by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         ScheduleRepository(this, SiteClient())

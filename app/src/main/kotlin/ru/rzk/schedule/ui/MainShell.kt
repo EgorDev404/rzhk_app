@@ -70,6 +70,7 @@ fun MainShell(
     notificationsOn: Boolean,
     bellsFull: Boolean,
     onBellsFullChange: (Boolean) -> Unit,
+    onOpenBookmarks: () -> Unit,
     onOpenSettings: () -> Unit,
     onEnableNotifications: () -> Unit,
     onOpenViewer: (ViewerRequest) -> Unit,
@@ -164,6 +165,7 @@ fun MainShell(
                     HomeScreen(
                         vm = vm,
                         notificationsOn = notificationsOn,
+                        onOpenBookmarks = onOpenBookmarks,
                         onOpenSettings = onOpenSettings,
                         onEnableNotifications = onEnableNotifications,
                         onOpenViewer = onOpenViewer,

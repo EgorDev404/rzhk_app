@@ -32,10 +32,14 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,10 +61,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import ru.rzk.schedule.data.BookmarksStore
+import ru.rzk.schedule.data.Dates
 import java.io.File
 
 /**
@@ -68,11 +76,15 @@ import java.io.File
  * Фон всегда чёрный, поэтому панели закрыты градиентными плашками — белый текст
  * не сливается с белым PDF.
  *
- * Зум управляется обычными [mutableFloatStateOf] и обновляется прямо в обработчике жеста:
- * никаких корутин на каждое движение пальца. [Animatable] используется только для двойного тапа.
+ * Если в [ViewerRequest.day] передана дата расписания, в правом верхнем углу доступна
+ * кнопка добавления/редактирования закладки.
  */
 @Composable
-fun ViewerScreen(request: ViewerRequest, onClose: () -> Unit) {
+fun ViewerScreen(
+    request: ViewerRequest,
+    bookmarksStore: BookmarksStore? = null,
+    onClose: () -> Unit,
+) {
     if (request.pages.isEmpty()) {
         onClose()
         return
@@ -80,6 +92,14 @@ fun ViewerScreen(request: ViewerRequest, onClose: () -> Unit) {
 
     val pagerState = rememberPagerState(initialPage = request.startPage) { request.pages.size }
     var zoomed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+
+    val bookmarks by (bookmarksStore?.flow?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList()) })
+    val existingBookmark = remember(bookmarks, request.day) {
+        request.day?.let { day -> bookmarks.firstOrNull { it.day == day } }
+    }
+    var showBookmarkDialog by remember { mutableStateOf(false) }
 
     // В горизонтали панели закрывали бы верх расписания: там они прячутся сами, возвращаются по тапу.
     val compact = isCompactHeight()
@@ -124,7 +144,10 @@ fun ViewerScreen(request: ViewerRequest, onClose: () -> Unit) {
                     .windowInsetsPadding(topInsets)
                     .padding(horizontal = 4.dp, vertical = 4.dp),
             ) {
-                Row(verticalAlignment = Alignment.Top) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     IconButton(onClick = onClose) {
                         Icon(Icons.Rounded.Close, contentDescription = "Закрыть", tint = Color.White)
                     }
@@ -132,8 +155,19 @@ fun ViewerScreen(request: ViewerRequest, onClose: () -> Unit) {
                         text = request.title + if (request.pages.size > 1) " · ${pagerState.currentPage + 1}/${request.pages.size}" else "",
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 14.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
+                    if (request.day != null && bookmarksStore != null) {
+                        IconButton(onClick = { showBookmarkDialog = true }) {
+                            Icon(
+                                imageVector = if (existingBookmark != null) Icons.Rounded.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = if (existingBookmark != null) "Изменить закладку" else "Добавить в закладки",
+                                tint = Color.White,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -164,6 +198,42 @@ fun ViewerScreen(request: ViewerRequest, onClose: () -> Unit) {
                 }
             }
         }
+
+        SnackbarHost(
+            hostState = snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = 24.dp),
+        )
+    }
+
+    if (showBookmarkDialog && request.day != null && bookmarksStore != null) {
+        val day = request.day
+        BookmarkEditDialog(
+            dayTitle = Dates.full(day),
+            initialComment = existingBookmark?.comment.orEmpty(),
+            isExisting = existingBookmark != null,
+            onDismiss = { showBookmarkDialog = false },
+            onSave = { comment ->
+                showBookmarkDialog = false
+                scope.launch {
+                    bookmarksStore.save(day, request.pages, comment)
+                    snackbar.currentSnackbarData?.dismiss()
+                    snackbar.showSnackbar("Сохранено в закладки")
+                }
+            },
+            onDelete = if (existingBookmark != null) {
+                {
+                    showBookmarkDialog = false
+                    scope.launch {
+                        bookmarksStore.removeByDay(day)
+                        snackbar.currentSnackbarData?.dismiss()
+                        snackbar.showSnackbar("Удалено из закладок")
+                    }
+                }
+            } else null,
+        )
     }
 }
 
