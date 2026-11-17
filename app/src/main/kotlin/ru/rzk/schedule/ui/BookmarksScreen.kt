@@ -1,11 +1,5 @@
 package ru.rzk.schedule.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,7 +34,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.BookmarkRemove
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
@@ -150,9 +143,16 @@ fun BookmarkEditDialog(
                     value = comment,
                     onValueChange = { comment = it },
                     modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                    label = { Text("Комментарий (необязательно)") },
-                    placeholder = { Text("Например: обычное расписание на понедельник") },
+                    label = { Text("Комментарий", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    placeholder = {
+                        Text(
+                            "Например: обычное расписание",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
                     singleLine = false,
+                    minLines = 1,
                     maxLines = 3,
                     shape = RoundedCornerShape(16.dp),
                     keyboardOptions = KeyboardOptions(
@@ -305,12 +305,18 @@ fun BookmarksScreen(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         maxWidth = 640.dp,
                     ) {
-                        // Строка поиска по комментарию, дате или дню недели
+                        // Строка поиска по комментарию, дате или дню недели (подсказка строго в одну строку, чтобы поле не «прыгало»)
                         OutlinedTextField(
                             value = query,
                             onValueChange = { query = it },
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
-                            placeholder = { Text("Поиск по комментарию, дате или дню недели…") },
+                            placeholder = {
+                                Text(
+                                    "Поиск по комментарию или дате…",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
                             leadingIcon = {
                                 Icon(Icons.Rounded.Search, contentDescription = null)
                             },

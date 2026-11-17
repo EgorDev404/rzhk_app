@@ -1,9 +1,10 @@
 package ru.rzk.schedule.ui
 
+import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.util.LruCache
-import android.content.res.Configuration
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -37,6 +38,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
@@ -46,11 +50,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import ru.rzk.schedule.ui.theme.snowCap
-import ru.rzk.schedule.ui.theme.icicles
-import ru.rzk.schedule.ui.theme.LocalWinter
-import ru.rzk.schedule.ui.theme.candyCanes
-import ru.rzk.schedule.ui.theme.LocalNewYear
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -70,15 +69,20 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import ru.rzk.schedule.data.LoadStage
+import ru.rzk.schedule.ui.theme.LocalNewYear
+import ru.rzk.schedule.ui.theme.LocalWinter
+import ru.rzk.schedule.ui.theme.candyCanes
+import ru.rzk.schedule.ui.theme.icicles
+import ru.rzk.schedule.ui.theme.snowCap
 import java.io.File
 
 internal const val PAGE_RATIO = 1.414f // A4 в альбомной ориентации — пока не знаем реальный размер
@@ -204,9 +208,18 @@ private fun PulsingDot() {
 
 // ---- страница расписания ------------------------------------------------------------------------
 
-/** Карточка с превью расписания. Пропорции берутся из реальной картинки, поэтому высота — как у PDF. */
+/**
+ * Карточка с превью расписания. Пропорции берутся из реальной картинки, поэтому высота — как у PDF.
+ * Если передан [onBookmarkClick], в правом верхнем углу карточки показывается аккуратная круглая кнопка закладки.
+ */
 @Composable
-fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
+fun SchedulePageCard(
+    file: File,
+    label: String,
+    bookmarked: Boolean = false,
+    onBookmarkClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     // Если картинка уже в памяти (прогрета при старте или уже открывалась), берём её сразу в initialValue —
     // без лишнего кадра со скелетоном и без задержки fade-анимации.
     val cachedBitmap = remember(file) { PageImageCache.peek(file, PageImageCache.SAMPLE_SMALL) }
@@ -289,6 +302,39 @@ fun SchedulePageCard(file: File, label: String, onClick: () -> Unit) {
                     contentScale = ContentScale.FillWidth,
                     modifier = Modifier.fillMaxSize().alpha(if (detached) 0f else imageAlpha),
                 )
+            }
+            if (onBookmarkClick != null && !detached) {
+                val badgeBg by animateColorAsState(
+                    if (bookmarked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.94f)
+                    else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
+                    animationSpec = Motion.iosSnappySpring(),
+                    label = "cardBookmarkBg",
+                )
+                val badgeTint by animateColorAsState(
+                    if (bookmarked) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = Motion.iosSnappySpring(),
+                    label = "cardBookmarkTint",
+                )
+                Surface(
+                    onClick = onBookmarkClick,
+                    shape = CircleShape,
+                    color = badgeBg,
+                    contentColor = badgeTint,
+                    shadowElevation = 2.dp,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .size(36.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (bookmarked) Icons.Rounded.Bookmark else Icons.Outlined.BookmarkBorder,
+                            contentDescription = if (bookmarked) "Изменить закладку" else "Добавить в закладки",
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                }
             }
         }
     }

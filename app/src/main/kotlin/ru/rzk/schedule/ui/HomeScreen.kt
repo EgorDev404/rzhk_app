@@ -160,13 +160,18 @@ fun HomeScreen(
             topBar = {
                 val barActions: @Composable RowScope.() -> Unit = {
                     // Значок закладок рядом с календарём появляется только тогда, когда есть хотя бы одна закладка.
+                    // Размер 21.dp выравнивает оптический вес двойного флажка Bookmarks с соседними иконками.
                     AnimatedVisibility(
                         visible = bookmarks.isNotEmpty(),
                         enter = fadeIn(Motion.iosSnappySpring()) + scaleIn(Motion.iosSnappySpring(), initialScale = 0.7f),
                         exit = fadeOut(Motion.iosSnappySpring()) + scaleOut(Motion.iosSnappySpring(), targetScale = 0.7f),
                     ) {
                         IconButton(onClick = onOpenBookmarks) {
-                            Icon(Icons.Rounded.Bookmarks, contentDescription = "Закладки")
+                            Icon(
+                                Icons.Rounded.Bookmarks,
+                                contentDescription = "Закладки",
+                                modifier = Modifier.size(21.dp),
+                            )
                         }
                     }
                     IconButton(onClick = { showDatePicker = true }) {

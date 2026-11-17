@@ -1,7 +1,6 @@
 package ru.rzk.schedule.ui
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -9,7 +8,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -43,7 +40,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -163,29 +159,15 @@ private fun ReadyContent(
                 container = MaterialTheme.colorScheme.tertiaryContainer,
                 content = MaterialTheme.colorScheme.onTertiaryContainer,
             )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (!content.stale) {
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Rounded.CheckCircle, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                 Text(
                     text = updatedText(content.checkedAt) + " · потяните вниз, чтобы обновить",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
-            } else {
-                Spacer(Modifier.weight(1f))
             }
-            BookmarkPill(
-                bookmarked = bookmark != null,
-                onClick = onBookmarkClick,
-            )
         }
 
         // Если к закладке на этот день добавлен комментарий — аккуратно показываем его прямо над расписанием.
@@ -214,42 +196,12 @@ private fun ReadyContent(
         }
 
         content.pages.forEachIndexed { index, file ->
-            SchedulePageCard(file, label = "Расписание ${Dates.accusative(day)}, страница ${index + 1}") { onOpenPage(index) }
-        }
-    }
-}
-
-@Composable
-private fun BookmarkPill(bookmarked: Boolean, onClick: () -> Unit) {
-    val container by animateColorAsState(
-        if (bookmarked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-        animationSpec = Motion.iosSnappySpring(),
-        label = "bookmarkPillBg",
-    )
-    val content by animateColorAsState(
-        if (bookmarked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = Motion.iosSnappySpring(),
-        label = "bookmarkPillContent",
-    )
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(50),
-        color = container,
-        contentColor = content,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(
-                imageVector = if (bookmarked) Icons.Rounded.Bookmark else Icons.Outlined.BookmarkAdd,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-            )
-            Text(
-                text = if (bookmarked) "В закладках" else "В закладки",
-                style = MaterialTheme.typography.labelMedium,
+            SchedulePageCard(
+                file = file,
+                label = "Расписание ${Dates.accusative(day)}, страница ${index + 1}",
+                bookmarked = bookmark != null,
+                onBookmarkClick = if (index == 0) onBookmarkClick else null,
+                onClick = { onOpenPage(index) },
             )
         }
     }
