@@ -1,4 +1,4 @@
-plugins {
+    plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -17,8 +17,8 @@ android {
         applicationId = "ru.rzk.schedule"
         minSdk = 26
         targetSdk = 35
-        versionCode = 67
-        versionName = "3.1.0"
+        versionCode = 70
+        versionName = "3.2.0"
     }
 
     // Один и тот же ключ для всех сборок: новую версию можно ставить поверх старой без потери кэша.
